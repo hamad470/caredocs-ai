@@ -27,8 +27,9 @@ then commit and push; the Pages workflow republishes the site.
 
 What the Worker does: accepts requests only from `ALLOWED_ORIGIN` (your
 GitHub Pages address, set in `wrangler.toml`), allows at most 8 requests per
-visitor per minute, rejects oversized prompts, only allows the three models the
-demo offers, and tries the next key when one hits its free-tier limit.
+visitor per minute, rejects oversized prompts, accepts only Gemini text models
+(switching to the newest Flash model if a name has been retired), and tries the
+next key when one hits its free-tier limit.
 
 Create each key in a different Google Cloud project; keys in one project share
 a single quota.

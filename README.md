@@ -60,6 +60,17 @@ flowchart LR
     V --> A
 ```
 
+**Three ways to answer, chosen from the question.**
+- *Search questions* ("What happened when Arthur fell?") use BM25 retrieval
+  over every record and answer from the best-matching lines.
+- *Table questions* ("List every resident with their diagnoses",
+  "Which residents have dementia?", "What medications is Joan taking?") read the
+  labelled lines of every resident profile and prescription directly, like the
+  Flask app's SQL tools, so a 50-row table is complete and every cell cites the
+  exact line it came from.
+- *Count and trend questions* ("How many falls…", "Is Doris's fluid intake
+  dropping?") are calculated over every matching record.
+
 **How citations work.** Every record is stored with a stable ID (e.g.
 `INC-RES009-0189`, `CN-316`) and split into numbered lines. A citation such as
 *INC-RES009-0189, line 2* opens the record viewer at that line and also shows
@@ -81,6 +92,9 @@ verifier flagging an invented claim.*
 
 **Answer modes.** *AI answer* (the default) has Gemini write the answer from
 the evidence, using the site owner's free-tier keys, so visitors need no key.
+The model is chosen by asking Google which models each key can use (preferring
+the newest Flash model), so the demo keeps working when Google retires a model
+name. Gemini can also return its own table, and every row is checked.
 Keys are tried in turn when one hits its limit, and if all are busy the page
 falls back to quoting the records. *Quotes only* uses no AI at all: the answer
 is made of evidence lines copied word for word.

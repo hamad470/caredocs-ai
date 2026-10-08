@@ -37,7 +37,7 @@ export class Engine {
     return allowed;
   }
 
-  search(p, { k = 8, poolSize = 60, lambda = 0.75 } = {}) {
+  search(p, { k = 8, poolSize = 60, lambda = 0.75, maxLines = 14 } = {}) {
     const t0 = performance.now();
     const allowed = this.filter(p);
     const filtered = allowed.size < this.docs.length;
@@ -85,7 +85,7 @@ export class Engine {
       picked.push(c);
     }
 
-    const evidence = this.selectLines(picked, terms);
+    const evidence = this.selectLines(picked, terms, { maxLines });
     return {
       allowedCount: allowed.size, filtered, matchedCount: raw.size, terms, ranked: picked,
       evidence, ms: performance.now() - t0,

@@ -102,17 +102,51 @@ export function trendAnswer(engine, p, points) {
   return { mode: "trend", lead: "", claims, facts, evidence: ev, points };
 }
 
+// ── Structured questions: a table read straight from the profiles ───────────
+export function tableAnswer(engine, p, table, facts) {
+  const n = table.rows.length;
+  const total = engine.residents.length;
+  const filterNote = table.filterTerms.length ? ` whose records mention ${table.filterTerms.join(" and ")}` : "";
+  const f1 = { id: "F1", text: `${n} of ${total} residents${filterNote}.`, keys: table.rows.map((r) => r.cells[0].cites[0].key) };
+  const allFacts = [f1, ...facts.map((f, i) => ({ id: `F${i + 2}`, text: f.text,
+    keys: (f.rows || table.rows).map((r) => r.cells[0].cites[0].key) }))];
+  const claims = allFacts.map((f) => ({ text: f.id === "F1" ? `The table lists ${f.text}` : f.text, kind: "computed", fact: f,
+    cites: f.keys.slice(0, 30).map((k) => ({ id: f.id, key: k, line: 1 })),
+    check: { status: "computed", note: f.id === "F1"
+      ? "Read from every resident profile, not just the top search results. Select any cell to open the line it came from."
+      : "Counted over the rows of this table." } }));
+  // Evidence for the model: the record line behind every cell.
+  const evidence = [];
+  const seen = new Set();
+  for (const r of table.rows) for (const c of r.cells.slice(1)) for (const ci of c.cites) {
+    const id = `${ci.key}#${ci.line}`;
+    if (seen.has(id) || evidence.length >= 160) continue;
+    seen.add(id);
+    const doc = engine.byKey.get(ci.key);
+    evidence.push({ id: `E${evidence.length + 1}`, doc, line: ci.line, text: doc.lines[ci.line - 1] });
+  }
+  return { mode: "table", lead: "", table, claims, facts: allFacts, evidence,
+    promptNote: `The user is already shown a table of all ${n} matching residents, built directly from these records. Do not repeat the table or list every resident. In 1 to 3 sentences, answer the question or point out the main patterns, citing the calculated facts (F…) or evidence (E…).` };
+}
+
 // ── Answer with Gemini ───────────────────────────────────────────────────────
 export const SYSTEM_PROMPT = `You answer questions about a care home's records.
 Use ONLY the numbered evidence provided. Never use outside knowledge and never guess.
 Every sentence must cite at least one evidence ID it is based on, e.g. ["E2","E5"] or ["F1"].
 Copy names, dates and numbers exactly as they appear in the evidence.
 If the evidence does not answer the question, return one sentence saying what is missing, with "insufficient": true.
-Write in plain British English, at most 6 sentences, no lists.
-Reply with JSON only: {"answer":[{"sentence":"...","cites":["E1"]}],"insufficient":false}`;
+Write in plain British English, at most 6 sentences.
+If the user asks for a table, or the answer is several items sharing the same attributes, also return a table;
+every table row must cite the evidence its cells come from. Keep the sentences short when a table is given.
+Reply with JSON only:
+{"answer":[{"sentence":"...","cites":["E1"]}],
+ "table":{"columns":["..."],"rows":[{"cells":["..."],"cites":["E1"]}]},
+ "insufficient":false}
+Omit "table" when it is not needed.`;
 
-export function buildPrompt(engine, question, evidence, facts) {
+export function buildPrompt(engine, question, evidence, facts, note = "") {
   const lines = [];
+  if (note) lines.push(note, "");
   if (facts.length) {
     lines.push("Calculated facts (computed by the system from the full set of matching records):");
     for (const f of facts) lines.push(`[${f.id}] ${f.text}`);
@@ -128,8 +162,8 @@ export async function callGemini({ prompt, key, model, proxyUrl, signal }) {
   const body = {
     systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
     contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.1, maxOutputTokens: 1024, responseMimeType: "application/json",
-      ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
+    generationConfig: { temperature: 0.1, maxOutputTokens: 8192, responseMimeType: "application/json",
+      ...(/^gemini-2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
   };
   const url = proxyUrl || `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   const res = await fetch(url, {
@@ -154,8 +188,10 @@ export function parseModelAnswer(text) {
   const start = clean.indexOf("{"), end = clean.lastIndexOf("}");
   const obj = JSON.parse(start >= 0 ? clean.slice(start, end + 1) : clean);
   const answer = Array.isArray(obj.answer) ? obj.answer : [];
+  const t = obj.table && Array.isArray(obj.table.rows) && Array.isArray(obj.table.columns) ? obj.table : null;
   return { insufficient: !!obj.insufficient,
-    sentences: answer.map((a) => ({ text: String(a.sentence || "").trim(), cites: (a.cites || []).map(String) })).filter((a) => a.text) };
+    sentences: answer.map((a) => ({ text: String(a.sentence || "").trim(), cites: (a.cites || []).map(String) })).filter((a) => a.text),
+    table: t ? { columns: t.columns.map(String), rows: t.rows.map((r) => ({ cells: (r.cells || []).map((c) => String(c ?? "")), cites: (r.cites || []).map(String) })) } : null };
 }
 
 export function generatedAnswer(engine, parsed, evidence, facts) {
@@ -173,7 +209,21 @@ export function generatedAnswer(engine, parsed, evidence, facts) {
     claim.check = verifyClaim(engine, claim, byId, factById, parsed.insufficient);
     return claim;
   });
-  return { mode: "generated", lead: "", claims, facts, evidence, insufficient: parsed.insufficient };
+  let table = null;
+  if (parsed.table) {
+    table = { columns: parsed.table.columns, generated: true, rows: parsed.table.rows.map((r) => {
+      const cites = [], unknown = [];
+      for (const id of r.cites) {
+        const e = byId.get(id);
+        if (e) cites.push(cite(e));
+        else if (factById.has(id)) cites.push({ id, key: factById.get(id).keys[0], line: 1, fact: true });
+        else unknown.push(id);
+      }
+      const row = { text: r.cells.join(" "), cites, unknownCites: unknown };
+      return { cells: r.cells.map((text) => ({ text, cites })), cites, check: verifyClaim(engine, row, byId, factById, false) };
+    }) };
+  }
+  return { mode: "generated", lead: "", claims, facts, evidence, table, insufficient: parsed.insufficient };
 }
 
 // ── Verification ─────────────────────────────────────────────────────────────

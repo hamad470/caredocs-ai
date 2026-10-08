@@ -86,3 +86,23 @@ test("the verifier separates supported, unsupported and invented claims", () => 
   const g = generatedAnswer(engine, { insufficient: false, sentences: [{ text: "Made up.", cites: ["E99"] }] }, r.evidence, []);
   assert.equal(g.claims[0].check.status, "uncited");
 });
+
+test("table questions read every profile, and every cell cites its exact line", async () => {
+  const { buildRoster } = await import("../js/roster.js");
+  const q = "tell me names of the residents , theri primary diseases , any other diseaes  in a tabular form";
+  const p = parseQuestion(q, corpus);
+  assert.equal(p.intent, "roster");
+  const t = buildRoster(engine, p.roster, p.residents);
+  assert.equal(t.rows.length, corpus.residents.length);
+  assert.deepEqual(t.columns, ["Resident", "Primary diagnosis", "Other diagnoses"]);
+  assert.deepEqual(t.ignored.sort(), ["diseaes", "theri"]);
+  for (const r of t.rows) for (const c of r.cells.slice(1)) {
+    const line = engine.byKey.get(c.cites[0].key).lines[c.cites[0].line - 1];
+    assert.ok(line.includes(c.text), `${c.text} not in ${line}`);
+  }
+  const dem = buildRoster(engine, parseQuestion("Which residents have dementia?", corpus).roster, []);
+  const direct = corpus.docs.filter((d) => d[1] === "profile" && /dementia/i.test(d[5].slice(1).join(" "))).length;
+  assert.equal(dem.rows.length, direct);
+  assert.equal(parseQuestion("Was the GP called about Harold?", corpus).intent, "general");
+  assert.equal(parseQuestion("How many falls did Edith have?", corpus).intent, "count");
+});

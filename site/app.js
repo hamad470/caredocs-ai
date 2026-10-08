@@ -2,8 +2,9 @@ import { CONFIG } from "./config.js";
 import { Engine } from "./js/retrieve.js";
 import { parseQuestion } from "./js/query.js";
 import { escapeHtml as esc, longDate, stem, tokenize } from "./js/text.js";
+import { buildRoster, summariseRoster } from "./js/roster.js";
 import {
-  quotedAnswer, countAnswer, trendAnswer, buildPrompt, callGemini, parseModelAnswer,
+  quotedAnswer, countAnswer, trendAnswer, tableAnswer, buildPrompt, callGemini, parseModelAnswer,
   generatedAnswer, verifyClaim, sourceHeader, SYSTEM_PROMPT,
 } from "./js/answer.js";
 
@@ -12,11 +13,14 @@ const EXAMPLES = [
   "How many falls did Edith have in the last 6 months?",
   "Who fell the most?",
   "What happened when Arthur fell?",
+  "List every resident with their primary and other diagnoses in a table",
   "Is Doris's fluid intake dropping?",
+  "Which residents have dementia?",
   "What medications is Joan taking?",
   "Is Ethel losing weight?",
   "Has anyone refused their medication?",
   "What are Margaret's allergies?",
+  "Who is the oldest resident?",
 ];
 const STATUS = {
   supported: "Supported", partial: "Partly supported", weak: "Not found in source",
@@ -39,28 +43,69 @@ async function loadKeys() {
   keyIndex = KEYS.length ? Math.floor(Math.random() * KEYS.length) : 0;
 }
 
-// Try each key, and each model, before giving up. A 429 (quota) or 403 moves
-// to the next key; a 404 (model unavailable) moves to the next model.
+// Which model to use is discovered from each key, as the Flask app does, so the
+// demo keeps working when Google retires a model name.
+const FALLBACK_MODELS = ["gemini-flash-latest", ...CONFIG.MODELS];
+const REJECT = /(embedding|aqa|vision|image|audio|tts|imagen|veo|gemma|learnlm|live|computer-use|robotics)/;
+const DEMOTE = /(preview|exp|thinking)/;
+const modelCache = new Map();          // key -> ordered model names
+const badModels = new Set();           // "key|model" pairs that returned 404
+
+function rank(name) {
+  const low = name.toLowerCase();
+  if (low === "gemini-flash-latest") return [DEMOTE.test(low) ? 1 : 0, 0];
+  const version = parseFloat((low.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || 0);
+  return [DEMOTE.test(low) ? 1 : 0, 1, /flash/.test(low) ? 0 : 1, /lite/.test(low) ? 1 : 0,
+    /pro/.test(low) ? 1 : 0, -version, low.length];
+}
+const byRank = (a, b) => { const ra = rank(a), rb = rank(b);
+  for (let i = 0; i < Math.max(ra.length, rb.length); i++) if ((ra[i] ?? 0) !== (rb[i] ?? 0)) return (ra[i] ?? 0) - (rb[i] ?? 0);
+  return 0; };
+
+async function modelsFor(key) {
+  if (modelCache.has(key)) return modelCache.get(key);
+  let names = [];
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
+      { headers: { "x-goog-api-key": key } });
+    const data = await res.json();
+    names = (data.models || [])
+      .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
+      .map((m) => String(m.name || "").replace(/^models\//, ""))
+      .filter((n) => n.startsWith("gemini") && !REJECT.test(n));
+  } catch { /* fall back to the static list */ }
+  const merged = [...new Set([...names, ...FALLBACK_MODELS])].sort(byRank).slice(0, 6);
+  modelCache.set(key, merged);
+  return merged;
+}
+
+// Try keys in turn (starting from a random one) and, for each key, the best
+// models it offers. 404 = model retired, try the next; 429/5xx = busy, try the
+// next model or key; 400/401/403 = key problem, try the next key.
 async function generate(prompt) {
   if (!KEYS.length) {
-    return callGemini({ prompt, model: CONFIG.MODELS[modelIndex], proxyUrl: CONFIG.PROXY_URL });
+    return callGemini({ prompt, model: "gemini-flash-latest", proxyUrl: CONFIG.PROXY_URL });
   }
-  let lastErr;
-  for (let m = modelIndex; m < CONFIG.MODELS.length; m++) {
-    for (let k = 0; k < KEYS.length; k++) {
-      const i = (keyIndex + k) % KEYS.length;
+  let lastErr, attempts = 0;
+  for (let k = 0; k < KEYS.length; k++) {
+    const i = (keyIndex + k) % KEYS.length;
+    const key = KEYS[i];
+    for (const model of await modelsFor(key)) {
+      if (badModels.has(`${i}|${model}`) || attempts >= 10) continue;
+      attempts++;
       try {
-        const out = await callGemini({ prompt, key: KEYS[i], model: CONFIG.MODELS[m] });
-        keyIndex = i; modelIndex = m;
+        const out = await callGemini({ prompt, key, model });
+        keyIndex = i;
+        modelCache.set(key, [model, ...modelCache.get(key).filter((m) => m !== model)]);
         return out;
       } catch (err) {
         lastErr = err;
-        if (err.status === 404) break;                       // try the next model
-        if (![429, 403, 500, 503].includes(err.status)) throw err;
+        if (err.status === 404) { badModels.add(`${i}|${model}`); continue; }
+        if ([400, 401, 403].includes(err.status)) break;
       }
     }
   }
-  throw lastErr;
+  throw lastErr || new Error("no Gemini model answered");
 }
 
 // ── Loading ────────────────────────────────────────────────────────────────
@@ -108,18 +153,20 @@ async function ask(question) {
 
   const p = parseQuestion(question, corpus);
   const t0 = performance.now();
-  const search = engine.search(p);
-  let base, counted = null, points = null;
-  if (p.intent === "count") { counted = engine.count(p); base = countAnswer(engine, p, counted); }
+  const useAi = mode === "gemini" && hasGemini();
+  const search = engine.search(p, useAi ? { k: 12, maxLines: 30 } : {});
+  let base, counted = null, points = null, table = null;
+  if (p.intent === "roster") { table = buildRoster(engine, p.roster, p.residents); base = tableAnswer(engine, p, table, summariseRoster(table)); }
+  else if (p.intent === "count") { counted = engine.count(p); base = countAnswer(engine, p, counted); }
   else if (p.intent === "trend") { points = engine.series(p); base = trendAnswer(engine, p, points); }
   else base = quotedAnswer(engine, search);
   const evidence = base.evidence || search.evidence;
   checkDerived(base, evidence);
-  current = { p, search, counted, points, base, evidence, mode: mode === "gemini" && hasGemini() ? "gemini" : "quoted", retrievalMs: performance.now() - t0, gemini: null };
+  current = { p, search, counted, points, table, base, evidence, mode: mode === "gemini" && hasGemini() ? "gemini" : "quoted", retrievalMs: performance.now() - t0, gemini: null };
 
   $("workspace").hidden = false;
   if (mode === "gemini" && hasGemini()) {
-    current.gemini = { state: "running", prompt: buildPrompt(engine, question, evidence, base.facts) };
+    current.gemini = { state: "running", prompt: buildPrompt(engine, question, evidence, base.facts, base.promptNote || "") };
     render();
     await runGemini();
   } else {
@@ -178,9 +225,10 @@ function claimNote(check) {
   return `<p class="check-note">${html}</p>`;
 }
 
-function renderClaims(answer) {
+function renderClaims(answer, offset = 0, src = "") {
   let prevKey = null;
-  return `<ol class="claims">${answer.claims.map((c, i) => {
+  return `<ol class="claims" data-src="${src}">${answer.claims.map((c, j) => {
+    const i = j + offset;
     let src = "";
     if (c.kind === "quoted") {
       const d = c.doc;
@@ -192,6 +240,28 @@ function renderClaims(answer) {
       <div class="claim-foot">${statusBadge(check)}${citeButtons(c.cites, i)}</div>
       ${c.kind !== "quoted" ? claimNote(check) : ""}</li>`;
   }).join("")}</ol>`;
+}
+
+function cellHtml(c) {
+  if (!c.cites.length) return esc(c.text || "–");
+  const parts = c.list ? c.text.split("; ") : [c.text];
+  if (parts.length === c.cites.length) {
+    return parts.map((t, i) => `<button class="cite cell-cite" type="button" data-key="${esc(c.cites[i].key)}" data-line="${c.cites[i].line}" title="${esc(c.cites[i].key)}, line ${c.cites[i].line}">${esc(t)}</button>`).join("; ");
+  }
+  return `<button class="cite cell-cite" type="button" data-key="${esc(c.cites[0].key)}" data-line="${c.cites[0].line}" title="${esc(c.cites[0].key)}, line ${c.cites[0].line}">${esc(c.text)}</button>`;
+}
+
+function tableHtml(table) {
+  const gen = !!table.generated;
+  const head = table.columns.map((c) => `<th>${esc(c)}</th>`).join("") + (gen ? "<th>Check</th><th>Sources</th>" : "");
+  const body = table.rows.map((r, ri) => {
+    const cells = gen ? r.cells.map((c) => `<td>${esc(c.text)}</td>`).join("")
+      + `<td>${statusBadge(r.check)}</td><td>${r.cites.slice(0, 3).map((x) => `<button class="cite" type="button" data-key="${esc(x.key)}" data-line="${x.line}" data-row="${ri}">${esc(x.key)}, line ${x.line}</button>`).join(" ")}${r.cites.length > 3 ? ` <span class="small">+${r.cites.length - 3}</span>` : ""}</td>`
+      : r.cells.map((c) => `<td>${cellHtml(c)}</td>`).join("");
+    return `<tr>${cells}</tr>`;
+  }).join("");
+  return `<div class="tbl-wrap answer-table"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
+    <p class="small">${gen ? "Table written by the model; each row is checked against the lines it cites." : "Every cell is read from a record. Select a cell to open the line it came from."}</p>`;
 }
 
 function sparkline(points) {
@@ -229,10 +299,16 @@ function render() {
       html += renderBase(base);
     } else {
       const counts = {};
-      for (const c of answer.claims) counts[c.check.status] = (counts[c.check.status] || 0) + 1;
+      const checks = [...answer.claims.map((c) => c.check), ...(answer.table?.rows || []).map((r) => r.check)];
+      for (const c of checks) counts[c.status] = (counts[c.status] || 0) + 1;
       html += `<div class="summary-strip">${Object.entries(counts).map(([s, n]) => `<span class="status ${s}">${n} ${STATUS[s].toLowerCase()}</span>`).join("")}</div>`;
       html += renderClaims(answer);
+      if (answer.table) html += tableHtml(answer.table);
       if (current.points) html += sparkline(current.points);
+      if (current.table) {
+        html += tableHtml(current.table);
+        html += `<h4 class="sub">Calculated from every profile</h4>` + renderClaims(base, 0, "base");
+      }
     }
   } else {
     html += renderBase(base);
@@ -243,6 +319,12 @@ function render() {
 
 function renderBase(base) {
   let html = base.lead ? `<p class="lead">${esc(base.lead)}</p>` : "";
+  if (base.table) {
+    html += renderClaims({ claims: base.claims.slice(0, 1) });
+    html += tableHtml(base.table);
+    if (base.claims.length > 1) html += `<h4 class="sub">Calculated from the table</h4>` + renderClaims({ claims: base.claims.slice(1) }, 1);
+    return html;
+  }
   html += renderClaims(base);
   if (current.points) html += sparkline(current.points);
   return html;
@@ -258,7 +340,7 @@ function renderPipeline() {
     p.hardTypes.length ? `<span class="chip"><b>Only</b> ${esc(p.hardTypes.map((t) => engine.label(t)).join(", "))}</span>` : "",
     p.softTypes.length ? `<span class="chip"><b>Preferred</b> ${esc(p.softTypes.map((t) => engine.label(t)).join(", "))}</span>` : "",
     p.incidentType ? `<span class="chip"><b>Incident type</b> ${esc(p.incidentType)}</span>` : "",
-    `<span class="chip"><b>Question type</b> ${{ count: "count records", trend: "measurement over time", general: "find relevant lines" }[p.intent]}</span>`,
+    `<span class="chip"><b>Question type</b> ${{ count: "count records", trend: "measurement over time", general: "find relevant lines", roster: "table from resident profiles" }[p.intent]}</span>`,
   ].join("");
   const terms = `<p>Search terms: ${p.terms.length ? p.terms.map((t) => `<b>${esc(t)}</b>`).join(", ") : "none (ranked by date)"}${p.expanded.length ? `, expanded with ${p.expanded.map(esc).join(", ")}` : ""}.</p>`;
   steps.push(step("Understand the question", `${resNames.length || p.dates || p.hardTypes.length ? "filters found" : "no filters"}`,
@@ -267,7 +349,14 @@ function renderPipeline() {
   steps.push(step("Filter by metadata", `${corpus.meta.n_docs.toLocaleString("en-GB")} → ${search.allowedCount.toLocaleString("en-GB")} records`,
     `<p>Records outside the resident, period and type filters are removed before searching. Profiles, care plans and prescriptions describe a standing state, so the period filter does not remove them.</p>`));
 
-  if (p.intent === "count") {
+  if (p.intent === "roster") {
+    const t = current.table;
+    steps.push(step("Read every resident profile", `${t.rows.length} of ${corpus.residents.length} residents`,
+      `<p>Every resident profile has the same labelled lines (Primary diagnosis, Allergies, Mobility, …), so this question is answered by reading those lines for all residents rather than by keyword search, which only returns the best few records. Medications come from the prescription records.</p>
+       <div class="chips"><span class="chip"><b>Columns</b> ${esc(t.columns.join(", "))}</span>
+       ${t.filterTerms.length ? `<span class="chip"><b>Keep rows mentioning</b> ${esc(t.filterTerms.join(", "))}</span>` : ""}
+       ${t.ignored.length ? `<span class="chip"><b>Ignored</b> ${esc(t.ignored.join(", "))} (not found in any profile)</span>` : ""}</div>`));
+  } else if (p.intent === "count") {
     steps.push(step("Count matching records", `${counted.docs.length} records`,
       `<p>Every record that passes the filters is counted, so the number does not depend on how many results are shown.</p>${counted.byResident.length > 1 ? `<div class="tbl-wrap"><table><thead><tr><th>Resident</th><th class="num">Records</th></tr></thead><tbody>${counted.byResident.slice(0, 8).map(([r, n]) => `<tr><td>${esc(r >= 0 ? corpus.residents[r][1] : "home-wide")}</td><td class="num">${n}</td></tr>`).join("")}</tbody></table></div>` : ""}`));
   } else if (p.intent === "trend") {
@@ -369,7 +458,8 @@ document.addEventListener("click", (ev) => {
     let stems = null;
     const ci = c.dataset.claim;
     if (ci !== undefined && current) {
-      const answer = current.mode === "gemini" && current.answer ? current.answer : current.base;
+      const fromBase = c.closest(".claims")?.dataset.src === "base";
+      const answer = !fromBase && current.mode === "gemini" && current.answer ? current.answer : current.base;
       const claim = answer.claims[Number(ci)];
       if (claim) {
         const same = claim.cites.filter((x) => x.key === key).map((x) => x.line);

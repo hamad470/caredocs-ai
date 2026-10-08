@@ -2,6 +2,7 @@
 // Everything here is rule-based and shown to the user, so it is easy to see
 // why a record was or was not considered.
 import { tokenize, MONTHS } from "./text.js";
+import { parseRoster } from "./roster.js";
 
 const NUMBER_WORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
   seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
@@ -140,8 +141,10 @@ export function parseQuestion(question, corpus) {
   for (const [key, m] of Object.entries(MEASURES)) {
     if (m.re.test(s)) { measure = key; break; }
   }
+  const roster = parseRoster(q, nameTokens);
   let intent = "general";
-  if (count && (incidentType || hardTypes.size)) intent = "count";
+  if (count && (incidentType || hardTypes.size) && !(roster && !incidentType)) intent = "count";
+  else if (roster) intent = "roster";
   else if (measure && residents.length === 1 && (TREND_WORDS.test(s) || measure === "weight")) intent = "trend";
 
   const base = tokenize(q).filter((t) => !FILLER.has(t) && !nameTokens.has(t)
@@ -150,7 +153,7 @@ export function parseQuestion(question, corpus) {
   for (const t of base) for (const e of EXPANSIONS[t] || []) if (!base.includes(e) && !expanded.includes(e)) expanded.push(e);
 
   return {
-    question: q, residents, dates, intent, incidentType, measure,
+    question: q, residents, dates, intent, incidentType, measure, roster,
     measureSpec: measure ? MEASURES[measure] : null,
     hardTypes: [...hardTypes], softTypes: [...softTypes].filter((t) => !hardTypes.has(t)),
     terms: base, expanded,

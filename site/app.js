@@ -27,24 +27,41 @@ const STATUS = {
 let engine = null;
 let corpus = null;
 let current = null;       // { p, answer, ... } for the answer on screen
-const settings = { key: "", model: CONFIG.DEFAULT_MODEL, remember: false };
 
-// ── Storage (per-viewer, optional) ─────────────────────────────────────────
-function loadSettings() {
-  try {
-    const raw = localStorage.getItem("caredocs-gemini") || sessionStorage.getItem("caredocs-gemini");
-    if (raw) Object.assign(settings, JSON.parse(raw));
-  } catch { /* storage unavailable */ }
+// ── Gemini keys (the site owner's, added at build time) ────────────────────
+let KEYS = [];
+let keyIndex = 0;          // rotates so visitors spread across the keys
+let modelIndex = 0;
+const hasGemini = () => KEYS.length > 0 || !!CONFIG.PROXY_URL;
+
+async function loadKeys() {
+  try { KEYS = (await import("./keys.js")).GEMINI_KEYS || []; } catch { KEYS = []; }
+  keyIndex = KEYS.length ? Math.floor(Math.random() * KEYS.length) : 0;
 }
-function saveSettings() {
-  try {
-    localStorage.removeItem("caredocs-gemini");
-    sessionStorage.removeItem("caredocs-gemini");
-    const store = settings.remember ? localStorage : sessionStorage;
-    store.setItem("caredocs-gemini", JSON.stringify(settings));
-  } catch { /* storage unavailable */ }
+
+// Try each key, and each model, before giving up. A 429 (quota) or 403 moves
+// to the next key; a 404 (model unavailable) moves to the next model.
+async function generate(prompt) {
+  if (!KEYS.length) {
+    return callGemini({ prompt, model: CONFIG.MODELS[modelIndex], proxyUrl: CONFIG.PROXY_URL });
+  }
+  let lastErr;
+  for (let m = modelIndex; m < CONFIG.MODELS.length; m++) {
+    for (let k = 0; k < KEYS.length; k++) {
+      const i = (keyIndex + k) % KEYS.length;
+      try {
+        const out = await callGemini({ prompt, key: KEYS[i], model: CONFIG.MODELS[m] });
+        keyIndex = i; modelIndex = m;
+        return out;
+      } catch (err) {
+        lastErr = err;
+        if (err.status === 404) break;                       // try the next model
+        if (![429, 403, 500, 503].includes(err.status)) throw err;
+      }
+    }
+  }
+  throw lastErr;
 }
-const hasGemini = () => !!(settings.key || CONFIG.PROXY_URL);
 
 // ── Loading ────────────────────────────────────────────────────────────────
 async function load() {
@@ -84,7 +101,6 @@ async function ask(question) {
   question = question.trim();
   if (!question || !engine) return;
   const mode = document.querySelector('input[name="mode"]:checked').value;
-  if (mode === "gemini" && !hasGemini()) { openSettings(); return; }
 
   const url = new URL(location.href);
   url.searchParams.set("q", question);
@@ -99,10 +115,10 @@ async function ask(question) {
   else base = quotedAnswer(engine, search);
   const evidence = base.evidence || search.evidence;
   checkDerived(base, evidence);
-  current = { p, search, counted, points, base, evidence, mode, retrievalMs: performance.now() - t0, gemini: null };
+  current = { p, search, counted, points, base, evidence, mode: mode === "gemini" && hasGemini() ? "gemini" : "quoted", retrievalMs: performance.now() - t0, gemini: null };
 
   $("workspace").hidden = false;
-  if (mode === "gemini") {
+  if (mode === "gemini" && hasGemini()) {
     current.gemini = { state: "running", prompt: buildPrompt(engine, question, evidence, base.facts) };
     render();
     await runGemini();
@@ -128,8 +144,7 @@ async function runGemini() {
   const g = current.gemini;
   const t0 = performance.now();
   try {
-    const out = await callGemini({ prompt: g.prompt, key: settings.key, model: settings.model,
-      proxyUrl: settings.key ? "" : CONFIG.PROXY_URL });
+    const out = await generate(g.prompt);
     g.raw = out.text; g.usage = out.usage; g.model = out.model; g.ms = performance.now() - t0;
     const parsed = parseModelAnswer(out.text);
     current.answer = generatedAnswer(engine, parsed, current.evidence, current.base.facts);
@@ -204,13 +219,13 @@ function render() {
   const { p, base, gemini } = current;
   const answer = current.answer && current.mode === "gemini" ? current.answer : base;
   let html = `<div class="answer-head"><h3 class="answer-q">${esc(p.question)}</h3>
-    <span class="answer-meta">${current.mode === "gemini" ? `Written by ${esc(gemini?.model || settings.model)}` : "Quoted from the records, no AI"}</span></div>`;
+    <span class="answer-meta">${current.mode === "gemini" ? `${gemini?.state === "done" ? `Written by ${esc(gemini.model)}, checked against the records` : "AI answer"}` : "Quoted from the records, no AI"}</span></div>`;
 
   if (current.mode === "gemini") {
     if (gemini.state === "running") {
       html += `<p class="lead">Writing with Gemini from ${current.evidence.length} evidence lines${base.facts.length ? ` and ${base.facts.length} calculated fact${base.facts.length > 1 ? "s" : ""}` : ""}…</p>`;
     } else if (gemini.state === "error") {
-      html += `<div class="error">${esc(gemini.error)} Showing the quoted answer instead.</div>`;
+      html += `<div class="error">The AI answer is unavailable right now (${esc(gemini.error)}). Here are the matching lines from the records instead.</div>`;
       html += renderBase(base);
     } else {
       const counts = {};
@@ -286,7 +301,7 @@ function renderPipeline() {
     }
   } else {
     steps.push(step("Write the answer", "quoted, no language model",
-      `<p>The answer is made of evidence lines copied word for word, so every sentence is in the record by construction. ${p.intent !== "general" ? "Calculated sentences show how they were computed and link to the records used." : ""} Switch to <b>Write with Gemini</b> to see a generated answer checked claim by claim.</p>`));
+      `<p>The answer is made of evidence lines copied word for word, so every sentence is in the record by construction. ${p.intent !== "general" ? "Calculated sentences show how they were computed and link to the records used." : ""} Choose <b>AI answer</b> to see Gemini write the answer, checked claim by claim.</p>`));
   }
   $("pipeline").innerHTML = steps.join("");
 }
@@ -386,42 +401,25 @@ $("examples").addEventListener("click", (e) => {
   ask(b.textContent);
 });
 document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener("change", () => {
-  if (r.checked && r.value === "gemini" && !hasGemini()) openSettings();
-  else if (r.checked && current) ask(current.p.question);
+  if (r.checked && current) ask(current.p.question);
 }));
 
-function openSettings() {
-  $("api-key").value = settings.key;
-  $("remember").checked = settings.remember;
-  $("model").innerHTML = CONFIG.MODELS.map((m) => `<option ${m === settings.model ? "selected" : ""}>${esc(m)}</option>`).join("");
-  $("proxy-note").hidden = !CONFIG.PROXY_URL;
-  $("settings").showModal();
-}
-$("settings-btn").addEventListener("click", openSettings);
-$("settings").addEventListener("close", () => {
-  if ($("settings").returnValue === "save") {
-    settings.key = $("api-key").value.trim();
-    settings.remember = $("remember").checked;
-    settings.model = $("model").value;
-    saveSettings();
-  }
-  updateGeminiHint();
-  const gem = document.querySelector('input[value="gemini"]');
-  if (gem.checked && !hasGemini()) document.querySelector('input[value="quoted"]').checked = true;
-  else if (gem.checked && current && $("settings").returnValue === "save") ask(current.p.question);
-});
-function updateGeminiHint() {
-  $("gemini-hint").textContent = settings.key ? `using your key, ${settings.model}` : CONFIG.PROXY_URL ? "ready" : "needs a free key";
+function updateModeUi() {
+  if (hasGemini()) return;
+  // No keys in this build: offer quotes only.
+  document.querySelector('input[value="quoted"]').checked = true;
+  const ai = document.querySelector('input[value="gemini"]');
+  ai.disabled = true;
+  $("gemini-hint").textContent = "not configured on this copy of the demo";
 }
 
 // ── Start ──────────────────────────────────────────────────────────────────
 $("repo-link").href = CONFIG.REPO_URL;
-loadSettings();
-updateGeminiHint();
-load().then(() => {
+Promise.all([load(), loadKeys()]).then(() => {
+  updateModeUi();
   const params = new URLSearchParams(location.search);
   const q = params.get("q");
-  if (params.get("mode") === "gemini" && hasGemini()) document.querySelector('input[value="gemini"]').checked = true;
+  if (params.get("mode") === "quoted") document.querySelector('input[value="quoted"]').checked = true;
   if (q) { $("question").value = q; ask(q); }
 }).catch((err) => {
   $("load-text").textContent = err.message;

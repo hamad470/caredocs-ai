@@ -35,4 +35,5 @@ desktop.ini
 # ── Live demo build outputs (python build_rag_demo.py --reference) ──
 site/data/
 site/test/reference.json
+site/keys.js
 node_modules/

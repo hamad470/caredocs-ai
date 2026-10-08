@@ -140,8 +140,8 @@ export async function callGemini({ prompt, key, model, proxyUrl, signal }) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = data?.error?.message || `HTTP ${res.status}`;
-    const err = new Error(res.status === 429 ? "The Gemini free-tier limit was reached. Wait a minute or use quoted answers."
-      : res.status === 400 || res.status === 403 ? `Gemini rejected the request: ${msg}` : `Gemini request failed: ${msg}`);
+    const err = new Error(res.status === 429 ? "the free Gemini limit was reached; try again in a minute"
+      : `Gemini returned ${res.status}: ${msg}`);
     err.status = res.status;
     throw err;
   }

@@ -1,7 +1,11 @@
 name: Live demo (GitHub Pages)
 
 # Builds the "Ask the records" demo from the synthetic cohort and publishes it.
-# One-time setup: repo Settings → Pages → Source: GitHub Actions.
+# One-time setup:
+#   1. Settings → Pages → Source: GitHub Actions
+#   2. Settings → Secrets and variables → Actions → New repository secret
+#      GEMINI_API_KEYS = your key(s), comma-separated
+# The keys are written into the published site only; they never enter git.
 
 on:
   push:
@@ -30,8 +34,10 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - name: Generate the synthetic cohort (seed 4242)
         run: python synthetic_cohort.py --yes
-      - name: Export records with line numbers
+      - name: Export records with line numbers (and add the Gemini keys)
         run: python build_rag_demo.py --reference
+        env:
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

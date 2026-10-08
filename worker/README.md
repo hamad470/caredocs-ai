@@ -1,9 +1,10 @@
 # Optional: shared Gemini connection for the live demo
 
-Without this, the live demo still works: quoted answers need no AI, and
-visitors can paste their own free Gemini key to see generated answers. Deploy
-this Cloudflare Worker if you want **Write with Gemini** to work for every
-visitor with no setup. The key stays in Cloudflare and never reaches the page.
+You do not need this. By default the demo uses the keys in the
+`GEMINI_API_KEYS` repository secret, which are added to the published page and
+so are visible to anyone who inspects it. Deploy this Cloudflare Worker instead
+if you want the keys kept server-side: they stay in Cloudflare and never reach
+the browser. The page uses the Worker only when the secret is empty.
 
 Cloudflare Workers' free plan is enough.
 

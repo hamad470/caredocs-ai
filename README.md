@@ -79,10 +79,19 @@ top results, and are labelled *Calculated*.
 *The right-hand screenshot uses a deliberately wrong test answer to show the
 verifier flagging an invented claim.*
 
-**Answer modes.** *Quote the records* needs no AI and no key: the answer is
-made of evidence lines copied word for word. *Write with Gemini* uses Google's
-free tier, either with the visitor's own key (kept in their browser) or through
-the optional [Cloudflare Worker](worker/README.md) that holds a shared key.
+**Answer modes.** *AI answer* (the default) has Gemini write the answer from
+the evidence, using the site owner's free-tier keys, so visitors need no key.
+Keys are tried in turn when one hits its limit, and if all are busy the page
+falls back to quoting the records. *Quotes only* uses no AI at all: the answer
+is made of evidence lines copied word for word.
+
+**Setting up the keys.** Add a repository secret named `GEMINI_API_KEYS`
+(Settings → Secrets and variables → Actions) holding one or more keys,
+comma-separated. The Pages workflow writes them into the published site only;
+they are never committed. They are visible to anyone who inspects the page, so
+use free-tier keys and restrict them to this site's address in Google Cloud.
+For keys hidden from the browser, use the optional
+[Cloudflare Worker](worker/README.md) instead.
 
 **Same engine as the app.** The documents come from the Flask app's
 `rag_advanced.load_documents()`, and the JavaScript BM25 is tested to return the

@@ -91,6 +91,7 @@ button.secondary { background: transparent; color: var(--ink); }
 .examples button:hover { border-color: var(--ink); }
 .mode { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; align-items: center; font-size: .95rem; }
 .mode label { display: inline-flex; gap: .4rem; align-items: center; cursor: pointer; }
+.mode label:has(input:disabled) { opacity: .55; cursor: not-allowed; }
 .mode input { accent-color: var(--ink); width: 1.05rem; height: 1.05rem; }
 .hint { color: var(--muted); font-size: .85rem; }
 .loading { margin-top: 1.2rem; font-size: .9rem; color: var(--muted); display: flex; align-items: center; gap: .8rem; }

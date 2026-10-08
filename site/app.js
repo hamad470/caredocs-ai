@@ -134,7 +134,7 @@ async function load() {
   const ms = Math.round(performance.now() - t0);
   $("load-bar").style.width = "100%";
   $("n-docs").textContent = corpus.meta.n_docs.toLocaleString("en-GB");
-  $("build-info").textContent = `${corpus.meta.n_docs.toLocaleString("en-GB")} records and ${corpus.meta.n_lines.toLocaleString("en-GB")} lines, dated ${longDate(corpus.meta.date_from)} to ${longDate(corpus.meta.date_to)}. Index built in your browser in ${ms} ms. Data built ${corpus.meta.built} from seed ${corpus.meta.seed}.`;
+  $("build-info").textContent = `${corpus.meta.n_docs.toLocaleString("en-GB")} records (${corpus.meta.n_lines.toLocaleString("en-GB")} lines), dated ${longDate(corpus.meta.date_from)} to ${longDate(corpus.meta.date_to)}. Search index built in your browser in ${(ms / 1000).toFixed(1)} seconds. Synthetic data, regenerated from a fixed seed so results are reproducible.`;
   $("loading").hidden = true;
   $("question").disabled = false;
   $("ask-btn").disabled = false;

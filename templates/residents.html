@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Residents{% endblock %}
+{% block page_title %}<i class="bi bi-people-fill"></i> Residents{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  {% for r in residents %}
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="mb-0 fw-bold" style="color:#1e3a5f;">{{ r.preferred_name }}</h6>
+            <div class="text-muted" style="font-size:.78rem;">{{ r.full_name }}</div>
+          </div>
+          <span class="badge" style="background:#e8f0fe;color:#1e3a5f;">Rm {{ r.room_number }}</span>
+        </div>
+        <div class="mb-2" style="font-size:.82rem;">
+          <span class="badge bg-light text-dark me-1">{{ r.care_type }}</span>
+          <span class="badge bg-light text-dark">Age {{ r.age }}</span>
+        </div>
+        <div style="font-size:.82rem;color:#475569;" class="mb-2">
+          <i class="bi bi-heart-pulse text-danger"></i> {{ r.primary_diagnosis }}
+        </div>
+        <div class="d-flex gap-2 flex-wrap mb-3" style="font-size:.75rem;">
+          <span title="Falls Risk"><i class="bi bi-person-exclamation"></i> Falls: <strong>{{ r.falls_risk }}</strong></span>
+          <span title="Pressure Risk"><i class="bi bi-shield-exclamation"></i> Pressure: <strong>{{ r.pressure_sore_risk }}</strong></span>
+          <span title="DNACPR"><i class="bi bi-heart"></i> {{ r.dnacpr_status }}</span>
+        </div>
+        <div style="font-size:.78rem;color:#64748b;" class="mb-3">
+          <i class="bi bi-person-check"></i> Key Worker: {{ r.key_worker }}
+        </div>
+        <a href="{{ url_for('resident_detail', resident_id=r.resident_id) }}"
+           class="btn btn-sm btn-outline-primary w-100">
+          <i class="bi bi-folder2-open"></i> View Full Record
+        </a>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <div class="alert alert-info">No residents found.</div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

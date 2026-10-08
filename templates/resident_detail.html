@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+{% block title %}{{ r.preferred_name }} — Record{% endblock %}
+{% block page_title %}<i class="bi bi-folder2-open"></i> {{ r.preferred_name }} — Full Record{% endblock %}
+
+{% block content %}
+<!-- Resident Header -->
+<div class="card border-0 shadow-sm mb-3" style="border-left:4px solid #1e3a5f !important;">
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-6">
+        <h5 class="mb-1" style="color:#1e3a5f;">{{ r.full_name }}</h5>
+        <div class="text-muted mb-2">Room {{ r.room_number }} — {{ r.care_type }} — {{ r.gender }}, Age {{ r.age }}</div>
+        <div class="mb-1"><strong>Primary Diagnosis:</strong> {{ r.primary_diagnosis }}</div>
+        <div class="mb-1"><strong>Secondary:</strong> {{ r.secondary_diagnoses or 'None' }}</div>
+        <div><strong>Allergies:</strong> <span class="text-danger fw-bold">{{ r.allergies or 'None known' }}</span></div>
+      </div>
+      <div class="col-md-3">
+        <div class="mb-1"><strong>GP:</strong> {{ r.gp_name }}</div>
+        <div class="mb-1"><strong>DNACPR:</strong> {{ r.dnacpr_status }}</div>
+        <div class="mb-1"><strong>Capacity:</strong> {{ r.mental_capacity }}</div>
+        <div class="mb-1"><strong>Key Worker:</strong> {{ r.key_worker }}</div>
+        <div><strong>NOK:</strong> {{ r.nok_name }} ({{ r.nok_relationship }})</div>
+      </div>
+      <div class="col-md-3">
+        <div class="mb-1"><strong>Mobility:</strong> {{ r.mobility_level }}</div>
+        <div class="mb-1"><strong>Continence:</strong> {{ r.continence_needs }}</div>
+        <div class="mb-1"><strong>Diet:</strong> {{ r.nutrition_texture }}</div>
+        <div class="mb-1"><i class="bi bi-person-exclamation text-danger"></i> Falls: <strong>{{ r.falls_risk }}</strong></div>
+        <div><i class="bi bi-shield-exclamation text-warning"></i> Pressure: <strong>{{ r.pressure_sore_risk }}</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick action buttons -->
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a href="{{ url_for('care_note_new') }}" class="btn btn-sm btn-primary">
+    <i class="bi bi-journal-plus"></i> Care Note
+  </a>
+  <a href="{{ url_for('incident_new') }}" class="btn btn-sm btn-danger">
+    <i class="bi bi-exclamation-triangle"></i> Incident
+  </a>
+  <a href="{{ url_for('handover_new') }}" class="btn btn-sm btn-info text-white">
+    <i class="bi bi-arrow-left-right"></i> Handover
+  </a>
+  <a href="{{ url_for('wellbeing_new') }}" class="btn btn-sm btn-success">
+    <i class="bi bi-heart-pulse"></i> Wellbeing
+  </a>
+  <a href="{{ url_for('risk_new') }}" class="btn btn-sm btn-warning text-dark">
+    <i class="bi bi-shield-exclamation"></i> Risk Assessment
+  </a>
+  <a href="{{ url_for('care_plan_new') }}" class="btn btn-sm btn-primary" style="background:#7c3aed;border-color:#7c3aed;">
+    <i class="bi bi-file-medical-fill"></i> Care Plan
+  </a>
+  <a href="#familyComms" class="btn btn-sm btn-secondary d-none">
+    <i class="bi bi-envelope-fill"></i> Family Comm
+  </a>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3 flex-wrap" id="residentTabs">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#care-notes-tab">
+    <i class="bi bi-journal-text"></i> Care Notes ({{ notes|length }})
+  </a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#incidents-tab">
+    <i class="bi bi-exclamation-triangle-fill text-danger"></i> Incidents ({{ incidents|length }})
+  </a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#meds-tab">
+    <i class="bi bi-capsule-pill"></i> Medications ({{ meds|length }})
+  </a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#wellbeing-tab">
+    <i class="bi bi-heart-pulse"></i> Wellbeing ({{ wellbeing|length }})
+  </a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#risks-tab">
+    <i class="bi bi-shield-exclamation"></i> Risks ({{ risks|length }})
+  </a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#handovers-tab">
+    <i class="bi bi-arrow-left-right"></i> Handovers ({{ handovers|length }})
+  </a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#care-plans-tab">
+    <i class="bi bi-file-medical-fill text-primary"></i> Care Plans ({{ care_plans|length }})
+  </a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#family-comms-tab">
+    <i class="bi bi-envelope-fill text-info"></i> Family Comms ({{ family_comms_list|length }})
+  </a></li>
+</ul>
+
+<div class="tab-content">
+  <!-- Care Notes -->
+  <div class="tab-pane fade show active" id="care-notes-tab">
+    <div class="d-flex justify-content-end mb-2">
+      <a href="{{ url_for('resident_care_notes_xlsx', resident_id=r.resident_id) }}"
+         class="btn btn-sm btn-success">
+        <i class="bi bi-file-earmark-excel"></i> Export All as XLSX (02_Care_Notes format)
+      </a>
+    </div>
+    {% for note in notes %}
+    <div class="card border-0 shadow-sm mb-2">
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <strong>{{ note.date }}</strong> — {{ note.shift }} Shift
+            <span class="badge badge-{{ note.status | replace('pending_approval','pending') }} ms-2">
+              {{ note.status | replace('_',' ') | title }}
+            </span>
+            {% if note.ai_generated %}<span class="ai-badge ms-1"><i class="bi bi-stars"></i> AI</span>{% endif %}
+          </div>
+          <div class="d-flex gap-1">
+            <a href="{{ url_for('care_note_view', note_id=note.id) }}" class="btn btn-xs btn-outline-primary" style="padding:2px 8px;font-size:.75rem;">View</a>
+            {% if note.status == 'approved' %}
+            <a href="{{ url_for('care_note_pdf', note_id=note.id) }}" class="btn btn-xs btn-outline-secondary" style="padding:2px 8px;font-size:.75rem;"><i class="bi bi-file-pdf"></i> PDF</a>
+            {% endif %}
+            {% if note.status == 'pending_approval' and session.get('role') in ('manager','senior_carer') %}
+            <form method="post" action="{{ url_for('care_note_approve', note_id=note.id) }}" style="display:inline;">
+              <button type="submit" class="btn btn-xs btn-success" style="padding:2px 8px;font-size:.75rem;">Approve</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        <div class="text-muted mt-1" style="font-size:.8rem;">
+          {{ note.staff_name }} — Mood: {{ note.mood }} — Appetite: {{ note.appetite }} — Fluid: {{ note.fluid_intake_ml }}ml
+        </div>
+        {% if note.care_narrative %}
+        <div class="narrative-box mt-2">{{ note.care_narrative }}</div>
+        {% endif %}
+        {% if note.concerns %}
+        <div class="mt-1" style="font-size:.8rem;"><strong class="text-danger">Concerns:</strong> {{ note.concerns }}</div>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light">No care notes recorded yet.</div>
+    {% endfor %}
+  </div>
+
+  <!-- Incidents -->
+  <div class="tab-pane fade" id="incidents-tab">
+    <div class="d-flex justify-content-end mb-2">
+      <a href="{{ url_for('resident_incidents_xlsx', resident_id=r.resident_id) }}"
+         class="btn btn-sm btn-success">
+        <i class="bi bi-file-earmark-excel"></i> Export as XLSX (03_Incidents format)
+      </a>
+    </div>
+    {% for inc in incidents %}
+    <div class="card border-0 shadow-sm mb-2" style="border-left:3px solid #{{ 'dc2626' if inc.severity in ('Major','Critical') else 'd97706' }} !important;">
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between">
+          <div>
+            <strong>{{ inc.incident_id }}</strong> — {{ inc.incident_type }}
+            <span class="badge bg-{{ 'danger' if inc.severity in ('Major','Critical') else 'warning text-dark' }} ms-2">{{ inc.severity }}</span>
+            <span class="badge badge-{{ inc.status }} ms-1">{{ inc.status | title }}</span>
+          </div>
+          <div class="d-flex gap-1">
+            <a href="{{ url_for('incident_view', inc_id=inc.id) }}" class="btn btn-xs btn-outline-primary" style="padding:2px 8px;font-size:.75rem;">View</a>
+            <a href="{{ url_for('incident_pdf', inc_id=inc.id) }}" class="btn btn-xs btn-outline-secondary" style="padding:2px 8px;font-size:.75rem;"><i class="bi bi-file-pdf"></i></a>
+          </div>
+        </div>
+        <div class="text-muted" style="font-size:.8rem;">{{ inc.date }} at {{ inc.time }} — {{ inc.location }}</div>
+        {% if inc.description %}<div class="narrative-box mt-2">{{ inc.description[:200] }}...</div>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light">No incidents recorded.</div>
+    {% endfor %}
+  </div>
+
+  <!-- Medications -->
+  <div class="tab-pane fade" id="meds-tab">
+    <div class="d-flex justify-content-end mb-2">
+      <a href="{{ url_for('resident_medications_xlsx', resident_id=r.resident_id) }}"
+         class="btn btn-sm btn-success">
+        <i class="bi bi-file-earmark-excel"></i> Export as XLSX (05_Medications + MAR format)
+      </a>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <thead style="background:#f8fafc;">
+          <tr>
+            <th>Medication</th><th>Dose</th><th>Route</th><th>Frequency</th>
+            <th>Indication</th><th>Review Date</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody style="font-size:.83rem;">
+          {% for med in meds %}
+          <tr>
+            <td>
+              <strong>{{ med.medication_name }}</strong>
+              {% if med.is_controlled %}<span class="badge bg-danger ms-1">CD</span>{% endif %}
+              {% if med.is_prn %}<span class="badge bg-info ms-1">PRN</span>{% endif %}
+            </td>
+            <td>{{ med.dose }}</td>
+            <td>{{ med.route }}</td>
+            <td>{{ med.frequency }}</td>
+            <td>{{ med.indication }}</td>
+            <td>{{ med.review_date or '—' }}</td>
+            <td>
+              <a href="{{ url_for('mar_record', mid=med.id) }}" class="btn btn-xs btn-outline-primary" style="padding:2px 8px;font-size:.75rem;">MAR Entry</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-muted text-center">No active medications.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Wellbeing -->
+  <div class="tab-pane fade" id="wellbeing-tab">
+    <div class="d-flex justify-content-end mb-2">
+      <a href="{{ url_for('resident_wellbeing_xlsx', resident_id=r.resident_id) }}"
+         class="btn btn-sm btn-success">
+        <i class="bi bi-file-earmark-excel"></i> Export as XLSX (06_Wellbeing format)
+      </a>
+    </div>
+    {% for w in wellbeing %}
+    <div class="card border-0 shadow-sm mb-2">
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between">
+          <strong>{{ w.assessment_date }} — {{ w.period_covered }}</strong>
+          <div class="d-flex gap-1">
+            <span class="badge bg-primary">Overall: {{ w.overall_score }}/10</span>
+            <a href="{{ url_for('wellbeing_pdf', wid=w.id) }}" class="btn btn-xs btn-outline-secondary" style="padding:2px 8px;font-size:.75rem;"><i class="bi bi-file-pdf"></i></a>
+          </div>
+        </div>
+        <div class="text-muted" style="font-size:.8rem;">Assessed by {{ w.assessed_by }}</div>
+        <div class="d-flex flex-wrap gap-2 mt-2" style="font-size:.75rem;">
+          <span>Physical: <strong>{{ w.physical_health_score }}</strong></span>
+          <span>Mental: <strong>{{ w.mental_health_score }}</strong></span>
+          <span>Social: <strong>{{ w.social_engagement_score }}</strong></span>
+          <span>Nutrition: <strong>{{ w.nutrition_score }}</strong></span>
+        </div>
+        {% if w.summary %}<div class="narrative-box mt-2">{{ w.summary }}</div>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light">No wellbeing assessments recorded.</div>
+    {% endfor %}
+  </div>
+
+  <!-- Risks -->
+  <div class="tab-pane fade" id="risks-tab">
+    <div class="d-flex justify-content-end mb-2">
+      <a href="{{ url_for('resident_risks_xlsx', resident_id=r.resident_id) }}"
+         class="btn btn-sm btn-success">
+        <i class="bi bi-file-earmark-excel"></i> Export as XLSX (07_Risk_Assessments format)
+      </a>
+    </div>
+    {% for risk in risks %}
+    <div class="card border-0 shadow-sm mb-2">
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between">
+          <strong>{{ risk.assessment_type }}</strong>
+          <span class="rag-{{ 'red' if risk.risk_level in ('High','Very High') else ('amber' if risk.risk_level=='Medium' else 'green') }}">
+            {{ risk.risk_level }}
+          </span>
+        </div>
+        <div class="text-muted" style="font-size:.8rem;">{{ risk.date_assessed }} — {{ risk.assessed_by }} — Review: {{ risk.review_date or 'Not set' }}</div>
+        {% if risk.narrative %}<div class="narrative-box mt-2">{{ risk.narrative[:200] }}</div>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light">No risk assessments recorded.</div>
+    {% endfor %}
+  </div>
+
+  <!-- Handovers -->
+  <div class="tab-pane fade" id="handovers-tab">
+    <div class="d-flex justify-content-end mb-2">
+      <a href="{{ url_for('resident_handovers_xlsx', resident_id=r.resident_id) }}"
+         class="btn btn-sm btn-success">
+        <i class="bi bi-file-earmark-excel"></i> Export as XLSX (04_Handovers format)
+      </a>
+    </div>
+    {% for h in handovers %}
+    <div class="card border-0 shadow-sm mb-2">
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between">
+          <strong>{{ h.date }} — {{ h.shift_ending }} → {{ h.shift_starting }}</strong>
+          <div>
+            {% if h.ai_generated %}<span class="ai-badge me-1"><i class="bi bi-stars"></i> AI</span>{% endif %}
+            <a href="{{ url_for('handover_pdf', hid=h.id) }}" class="btn btn-xs btn-outline-secondary" style="padding:2px 8px;font-size:.75rem;"><i class="bi bi-file-pdf"></i></a>
+          </div>
+        </div>
+        <div class="text-muted" style="font-size:.8rem;">{{ h.compiled_by }} — Fluid: {{ h.fluid_target_met }}</div>
+        {% if h.overall_summary %}<div class="narrative-box mt-2">{{ h.overall_summary }}</div>{% endif %}
+        {% if h.concerns_next_shift %}<div class="mt-1 text-warning fw-bold" style="font-size:.8rem;"><i class="bi bi-exclamation-circle"></i> {{ h.concerns_next_shift }}</div>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light">No handovers recorded.</div>
+    {% endfor %}
+  </div>
+
+  <!-- Care Plans -->
+  <div class="tab-pane fade" id="care-plans-tab">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="text-muted" style="font-size:.85rem;">{{ care_plans|length }} care plan version(s)</span>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('resident_care_plans_xlsx', resident_id=r.resident_id) }}"
+           class="btn btn-sm btn-success">
+          <i class="bi bi-file-earmark-excel"></i> Export as XLSX (08_Care_Plans format)
+        </a>
+        <a href="{{ url_for('care_plan_new') }}" class="btn btn-sm btn-primary" style="background:#7c3aed;border-color:#7c3aed;">
+          <i class="bi bi-plus-circle"></i> New Version
+        </a>
+      </div>
+    </div>
+    {% for cp in care_plans %}
+    <div class="card border-0 shadow-sm mb-2" style="border-left:3px solid {{ '#7c3aed' if cp.status=='Active' else '#94a3b8' }} !important;">
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <strong>Version {{ cp.version }}</strong>
+            <span class="badge ms-2" style="background:{{ '#7c3aed' if cp.status=='Active' else '#e2e8f0' }};color:{{ '#fff' if cp.status=='Active' else '#475569' }};">
+              {{ cp.status }}
+            </span>
+            {% if cp.ai_generated %}<span class="ai-badge ms-1"><i class="bi bi-stars"></i> AI</span>{% endif %}
+          </div>
+          <div class="text-muted" style="font-size:.78rem;">
+            From: {{ cp.effective_from or '—' }} | Review: {{ cp.review_date or '—' }}
+          </div>
+        </div>
+        <div class="text-muted mt-1" style="font-size:.78rem;">Reviewed by: {{ cp.reviewed_by or '—' }}</div>
+        {% if cp.personal_identity_summary %}
+        <div class="narrative-box mt-2" style="max-height:80px;overflow:hidden;">{{ cp.personal_identity_summary[:300] }}{% if cp.personal_identity_summary|length > 300 %}...{% endif %}</div>
+        {% endif %}
+        <div class="d-flex flex-wrap gap-1 mt-2" style="font-size:.72rem;color:#64748b;">
+          {% if cp.mobility_care_plan %}<span class="badge bg-light text-dark">Mobility</span>{% endif %}
+          {% if cp.personal_care_plan %}<span class="badge bg-light text-dark">Personal Care</span>{% endif %}
+          {% if cp.continence_care_plan %}<span class="badge bg-light text-dark">Continence</span>{% endif %}
+          {% if cp.nutrition_hydration_plan %}<span class="badge bg-light text-dark">Nutrition</span>{% endif %}
+          {% if cp.medication_management_plan %}<span class="badge bg-light text-dark">Medication</span>{% endif %}
+          {% if cp.cognitive_support_plan %}<span class="badge bg-light text-dark">Cognitive</span>{% endif %}
+          {% if cp.emotional_wellbeing_plan %}<span class="badge bg-light text-dark">Emotional</span>{% endif %}
+          {% if cp.social_activity_plan %}<span class="badge bg-light text-dark">Social</span>{% endif %}
+          {% if cp.end_of_life_preferences %}<span class="badge bg-light text-dark">End of Life</span>{% endif %}
+          {% if cp.goals_of_care %}<span class="badge bg-light text-dark">Goals</span>{% endif %}
+          {% if cp.risk_summary %}<span class="badge bg-light text-dark">Risks</span>{% endif %}
+          {% if cp.family_involvement_plan %}<span class="badge bg-light text-dark">Family</span>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light">
+      No care plans recorded yet.
+      <a href="{{ url_for('care_plan_new') }}" class="alert-link">Create the first care plan</a>.
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Family Comms -->
+  <div class="tab-pane fade" id="family-comms-tab">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="text-muted" style="font-size:.85rem;">{{ family_comms_list|length }} communication(s)</span>
+      <div class="d-flex gap-2">
+      </div>
+    </div>
+    {% for comm in family_comms_list %}
+    <div class="card border-0 shadow-sm mb-2">
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <span class="badge bg-{{ 'info' if comm.direction=='Outbound' else 'secondary' }} me-1">
+              {{ comm.direction }}
+            </span>
+            <strong>{{ comm.comm_type }}</strong>
+            {% if comm.subject %} — {{ comm.subject }}{% endif %}
+            {% if comm.ai_drafted %}<span class="ai-badge ms-1"><i class="bi bi-stars"></i> AI</span>{% endif %}
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            {% if comm.follow_up == 'Yes' %}
+            <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Follow-up</span>
+            {% endif %}
+            <span class="text-muted" style="font-size:.78rem;">{{ comm.date }}</span>
+          </div>
+        </div>
+        <div class="text-muted mt-1" style="font-size:.78rem;">
+          {{ comm.staff_member }} ↔ {{ comm.family_contact }}
+          {% if comm.trigger_event %} | Trigger: {{ comm.trigger_event }}{% endif %}
+        </div>
+        {% if comm.body %}
+        <div class="narrative-box mt-2">{{ comm.body[:250] }}{% if comm.body|length > 250 %}...{% endif %}</div>
+        {% endif %}
+        {% if comm.family_response %}
+        <div class="mt-1" style="font-size:.8rem;"><strong>Response:</strong> {{ comm.family_response[:150] }}</div>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light">
+      No family communications recorded..
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

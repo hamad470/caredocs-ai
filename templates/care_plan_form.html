@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}New Care Plan{% endblock %}
+{% block page_title %}<i class="bi bi-file-medical-fill text-primary"></i> New Care Plan{% endblock %}
+
+{% block content %}
+<div class="alert alert-info py-2 mb-3" style="font-size:.85rem;">
+  <i class="bi bi-info-circle-fill"></i>
+  Complete all sections below. Leaving a section blank with AI enabled will auto-generate it.
+  A new version will be created and the previous plan archived automatically.
+</div>
+
+<form method="post" id="carePlanForm">
+  <div class="ai-panel mb-3">
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span class="ai-badge"><i class="bi bi-stars"></i> AI Assist</span>
+      <strong style="font-size:.88rem;">Auto-generate all blank sections from resident data</strong>
+    </div>
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" name="use_ai" id="useAi" value="yes" checked>
+      <label class="form-check-label" for="useAi" style="font-size:.82rem;">Use AI to fill blank sections</label>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-md-8">
+
+      <!-- Header -->
+      <div class="form-section">
+        <h5><i class="bi bi-person-badge"></i> Plan Header</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Resident <span class="text-danger">*</span></label>
+            <select name="resident_id" class="form-select" required>
+              <option value="">— Select resident —</option>
+              {% for r in residents %}
+              <option value="{{ r.resident_id }}">{{ r.preferred_name }} ({{ r.full_name }}) — Rm {{ r.room_number }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Effective From</label>
+            <input type="date" name="effective_from" class="form-control" value="{{ today }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Review Date</label>
+            <input type="date" name="review_date" class="form-control">
+          </div>
+        </div>
+      </div>
+
+      <!-- Personal Identity -->
+      <div class="form-section">
+        <h5><i class="bi bi-person-heart"></i> Personal Identity Summary</h5>
+        <p class="text-muted" style="font-size:.8rem;">Who is this person? Life history, values, what matters to them.</p>
+        <textarea name="personal_identity_summary" class="form-control" rows="4"
+                  placeholder="e.g. Former teacher, married 40 years, loves gardening and classical music..."></textarea>
+      </div>
+
+      <!-- Mobility -->
+      <div class="form-section">
+        <h5><i class="bi bi-person-walking"></i> Mobility Care Plan</h5>
+        <p class="text-muted" style="font-size:.8rem;">Current mobility level, walking aids, transfer needs, repositioning schedule.</p>
+        <textarea name="mobility_care_plan" class="form-control" rows="4"
+                  placeholder="Mobility status, equipment in use, staff assistance required..."></textarea>
+      </div>
+
+      <!-- Personal Care -->
+      <div class="form-section">
+        <h5><i class="bi bi-droplet-fill"></i> Personal Care Plan</h5>
+        <p class="text-muted" style="font-size:.8rem;">Washing, dressing, grooming preferences and how care should be delivered.</p>
+        <textarea name="personal_care_plan" class="form-control" rows="4"
+                  placeholder="Bathing/showering preferences, dress preferences, products used..."></textarea>
+      </div>
+
+      <!-- Continence -->
+      <div class="form-section">
+        <h5><i class="bi bi-bandaid-fill"></i> Continence Care Plan</h5>
+        <p class="text-muted" style="font-size:.8rem;">Continence needs, products, toileting schedule, dignity considerations.</p>
+        <textarea name="continence_care_plan" class="form-control" rows="4"
+                  placeholder="Pads used, prompted toileting schedule, catheter care if applicable..."></textarea>
+      </div>
+
+      <!-- Nutrition & Hydration -->
+      <div class="form-section">
+        <h5><i class="bi bi-cup-hot-fill text-warning"></i> Nutrition & Hydration Plan</h5>
+        <p class="text-muted" style="font-size:.8rem;">Diet texture, fluid consistency, fluid targets, dietary preferences.</p>
+        <textarea name="nutrition_hydration_plan" class="form-control" rows="4"
+                  placeholder="Diet: normal/minced/pureed. Fluid consistency. Daily fluid target. Food preferences/dislikes..."></textarea>
+      </div>
+
+      <!-- Medication Management -->
+      <div class="form-section">
+        <h5><i class="bi bi-capsule-pill text-danger"></i> Medication Management Plan</h5>
+        <p class="text-muted" style="font-size:.8rem;">How medications are administered, capacity to consent, PRN guidance.</p>
+        <textarea name="medication_management_plan" class="form-control" rows="4"
+                  placeholder="Administration method, capacity to consent, any specific instructions..."></textarea>
+      </div>
+
+      <!-- Cognitive Support -->
+      <div class="form-section">
+        <h5><i class="bi bi-brain text-purple"></i> Cognitive Support Plan</h5>
+        <p class="text-muted" style="font-size:.8rem;">Dementia/cognitive impairment needs, reality orientation, communication strategies.</p>
+        <textarea name="cognitive_support_plan" class="form-control" rows="4"
+                  placeholder="Cognitive status, communication approaches, distraction techniques, sundowning triggers..."></textarea>
+      </div>
+
+      <!-- Emotional Wellbeing -->
+      <div class="form-section">
+        <h5><i class="bi bi-heart-fill text-danger"></i> Emotional Wellbeing Plan</h5>
+        <p class="text-muted" style="font-size:.8rem;">Mental health needs, mood, anxiety, what brings comfort and joy.</p>
+        <textarea name="emotional_wellbeing_plan" class="form-control" rows="4"
+                  placeholder="Mood patterns, anxiety triggers, comfort strategies, what makes them happy..."></textarea>
+      </div>
+
+      <!-- Social Activity -->
+      <div class="form-section">
+        <h5><i class="bi bi-people-fill text-success"></i> Social Activity Plan</h5>
+        <p class="text-muted" style="font-size:.8rem;">Preferred activities, social preferences, hobbies, engagement strategies.</p>
+        <textarea name="social_activity_plan" class="form-control" rows="4"
+                  placeholder="Preferred activities, group vs 1:1 preferences, hobbies, music preferences..."></textarea>
+      </div>
+
+      <!-- End of Life -->
+      <div class="form-section" style="border-left:4px solid #dc2626;">
+        <h5><i class="bi bi-heart text-danger"></i> End of Life Preferences</h5>
+        <p class="text-muted" style="font-size:.8rem;">DNACPR status, preferred place of care, advance wishes, spiritual needs at end of life.</p>
+        <textarea name="end_of_life_preferences" class="form-control" rows="4"
+                  placeholder="DNACPR status, preferred place of death, religious/spiritual wishes, what matters at end of life..."></textarea>
+      </div>
+
+      <!-- Risk Summary -->
+      <div class="form-section">
+        <h5><i class="bi bi-shield-exclamation text-warning"></i> Risk Summary</h5>
+        <p class="text-muted" style="font-size:.8rem;">Overview of key risks and current mitigation strategies.</p>
+        <textarea name="risk_summary" class="form-control" rows="4"
+                  placeholder="Key risks: falls (score), pressure (score), nutrition risk, behaviour risk. Mitigations in place..."></textarea>
+      </div>
+
+      <!-- Goals of Care -->
+      <div class="form-section">
+        <h5><i class="bi bi-bullseye text-primary"></i> Goals of Care</h5>
+        <p class="text-muted" style="font-size:.8rem;">What are we trying to achieve? Short and long-term goals, resident's own goals.</p>
+        <textarea name="goals_of_care" class="form-control" rows="4"
+                  placeholder="Primary goals: maintain independence, maximise quality of life, manage pain..."></textarea>
+      </div>
+
+      <!-- Family Involvement -->
+      <div class="form-section">
+        <h5><i class="bi bi-house-heart"></i> Family Involvement Plan</h5>
+        <p class="text-muted" style="font-size:.8rem;">How family/NOK are involved in care decisions, visit frequency, communication preferences.</p>
+        <textarea name="family_involvement_plan" class="form-control" rows="4"
+                  placeholder="Primary contact, visit frequency, involvement in decisions, communication method..."></textarea>
+      </div>
+
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-12 col-md-4">
+      <div class="form-section" style="position:sticky;top:70px;">
+        <h5>Save Care Plan</h5>
+        <div class="alert alert-warning py-2" style="font-size:.82rem;">
+          <i class="bi bi-arrow-clockwise"></i>
+          Saving creates a <strong>new version</strong> and archives the previous plan.
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Reviewed By</label>
+          <input type="text" class="form-control" value="{{ session.get('full_name','') }}" disabled>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mb-2">
+          <i class="bi bi-save"></i> Save Care Plan
+        </button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary w-100">Cancel</a>
+        <hr>
+        <div style="font-size:.75rem;color:#64748b;">
+          <strong>After saving:</strong>
+          <ul class="mb-0 ps-3 mt-1">
+            <li>Go to the resident's record</li>
+            <li>Click the Care Plans tab</li>
+            <li>Click <strong>Export XLSX</strong> for the full formatted report matching the dataset structure</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

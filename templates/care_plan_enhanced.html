@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block title %}Personalised Care Plan — {{ r.preferred_name }}{% endblock %}
+{% block page_title %}<i class="bi bi-file-medical-fill text-primary"></i> Personalised Care Plan — {{ r.preferred_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.context-panel { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:1rem; margin-bottom:1rem; }
+.context-panel h6 { color:#1e3a5f; font-weight:700; font-size:.82rem; text-transform:uppercase; letter-spacing:.4px; margin-bottom:.5rem; }
+.alert-item-critical { background:#fee2e2; color:#b91c1c; border-radius:6px; padding:4px 10px; font-size:.75rem; margin-bottom:3px; }
+.alert-item-high     { background:#ffedd5; color:#c2410c; border-radius:6px; padding:4px 10px; font-size:.75rem; margin-bottom:3px; }
+.alert-item-caution  { background:#fef9c3; color:#854d0e; border-radius:6px; padding:4px 10px; font-size:.75rem; margin-bottom:3px; }
+.med-row { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; padding:4px 0; border-bottom:1px solid #f1f5f9; font-size:.78rem; }
+.risk-badge-high  { background:#fee2e2; color:#991b1b; border-radius:4px; padding:1px 8px; font-size:.7rem; font-weight:700; }
+.risk-badge-med   { background:#fef3c7; color:#92400e; border-radius:4px; padding:1px 8px; font-size:.7rem; font-weight:700; }
+.risk-badge-low   { background:#d1fae5; color:#065f46; border-radius:4px; padding:1px 8px; font-size:.7rem; font-weight:700; }
+.section-generate-btn { background:linear-gradient(135deg,#7c3aed,#2563eb); color:#fff; border:none; border-radius:6px; padding:3px 10px; font-size:.75rem; cursor:pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <!-- Context Panel (sticky sidebar) -->
+  <div class="col-12 col-md-4 col-lg-3">
+    <div style="position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto;">
+
+      <!-- Resident summary -->
+      <div class="context-panel" style="border-left:4px solid #1e3a5f;">
+        <h6><i class="bi bi-person-fill"></i> {{ r.preferred_name }}</h6>
+        <div style="font-size:.78rem;">
+          <div><strong>{{ r.full_name }}</strong> · Rm {{ r.room_number }}</div>
+          <div>{{ r.age }}yrs · {{ r.gender }} · {{ r.care_type }}</div>
+          <div class="mt-1"><strong>Diagnosis:</strong> {{ r.primary_diagnosis }}</div>
+          {% if r.secondary_diagnoses %}
+          <div class="text-muted">+ {{ r.secondary_diagnoses }}</div>
+          {% endif %}
+          <div class="mt-1"><strong>GP:</strong> {{ r.gp_name }}</div>
+          <div><strong>NOK:</strong> {{ r.nok_name }} ({{ r.nok_relationship }})</div>
+        </div>
+      </div>
+
+      <!-- Alerts -->
+      {% set alerts = [] %}
+      {% if r.allergies and r.allergies.lower() not in ('none','none known','') %}
+        {% for allergy in r.allergies.split(',') %}
+          {% set _ = alerts.append({'level':'critical','text':'ALLERGY: ' + allergy.strip()}) %}
+        {% endfor %}
+      {% endif %}
+      {% if 'DNACPR' in r.dnacpr_status.upper() %}
+        {% set _ = alerts.append({'level':'critical','text': r.dnacpr_status}) %}
+      {% endif %}
+      {% if r.falls_risk in ('High','Very High') %}
+        {% set _ = alerts.append({'level':'high','text':'Falls Risk: ' + r.falls_risk}) %}
+      {% endif %}
+      {% if r.pressure_sore_risk in ('High','Very High') %}
+        {% set _ = alerts.append({'level':'high','text':'Pressure Risk: ' + r.pressure_sore_risk}) %}
+      {% endif %}
+      {% if r.dietary_restrictions %}
+        {% set _ = alerts.append({'level':'caution','text':'Diet: ' + r.dietary_restrictions}) %}
+      {% endif %}
+      {% for cond,msg in [('diabet','Diabetic — monitor BG'),('parkinson','Parkinsons - no crushing meds'),('dementia','Dementia — familiar routines'),('heart failure','Heart Failure — fluid balance'),('copd','COPD — inhaler protocol')] %}
+        {% set all_diag = (r.primary_diagnosis + ' ' + (r.secondary_diagnoses or '')).lower() %}
+        {% if cond in all_diag %}
+          {% set _ = alerts.append({'level':'caution','text': msg}) %}
+        {% endif %}
+      {% endfor %}
+
+      {% if alerts %}
+      <div class="context-panel" style="border-left:4px solid #dc2626;">
+        <h6><i class="bi bi-exclamation-octagon-fill text-danger"></i> Key Alerts</h6>
+        {% for a in alerts %}
+        <div class="alert-item-{{ a.level }}"><i class="bi bi-circle-fill" style="font-size:.5rem;vertical-align:middle;"></i> {{ a.text }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Active medications -->
+      {% if meds %}
+      <div class="context-panel">
+        <h6><i class="bi bi-capsule-pill text-danger"></i> Medications ({{ meds|length }})</h6>
+        {% for m in meds %}
+        <div class="med-row">
+          <span style="font-weight:600;">{{ m.medication_name }}</span>
+          <span class="text-muted">{{ m.dose }} {{ m.route }}</span>
+          <span style="font-size:.7rem;color:#64748b;">{{ m.frequency }}</span>
+          {% if m.is_controlled %}<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 5px;font-size:.65rem;">CD</span>{% endif %}
+          {% if m.is_prn %}<span style="background:#fef9c3;color:#92400e;border-radius:3px;padding:0 5px;font-size:.65rem;">PRN</span>{% endif %}
+          {% if m.admin_notes %}
+          <div style="width:100%;color:#f97316;font-size:.7rem;"><i class="bi bi-info-circle"></i> {{ m.admin_notes }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Risk assessments -->
+      {% if risks %}
+      <div class="context-panel">
+        <h6><i class="bi bi-shield-exclamation text-warning"></i> Risk Scores</h6>
+        {% for rk in risks %}
+        <div class="d-flex justify-content-between align-items-center mb-1" style="font-size:.78rem;">
+          <span>{{ rk.assessment_type }}</span>
+          <span class="risk-badge-{{ 'high' if rk.risk_level in ('High','Very High') else ('med' if rk.risk_level=='Medium' else 'low') }}">
+            {{ rk.risk_level }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Recent wellbeing -->
+      {% if wellbeing_list %}
+      <div class="context-panel">
+        <h6><i class="bi bi-heart-pulse text-success"></i> Wellbeing Trend</h6>
+        {% for w in wellbeing_list %}
+        <div style="font-size:.75rem;" class="mb-1">
+          <span class="text-muted">{{ w.assessment_date }}</span>
+          Overall: <strong>{{ w.overall_score }}/10</strong>
+          · Phys: {{ w.physical_health_score }} · Mental: {{ w.mental_health_score }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Recent incidents -->
+      {% if incidents %}
+      <div class="context-panel">
+        <h6><i class="bi bi-exclamation-triangle-fill text-danger"></i> Recent Incidents</h6>
+        {% for inc in incidents %}
+        <div style="font-size:.75rem;" class="mb-1">
+          <span class="text-muted">{{ inc.date }}</span>
+          <span class="badge bg-{{ 'danger' if inc.severity in ('Major','Critical') else 'warning text-dark' }}">{{ inc.severity }}</span>
+          {{ inc.incident_type }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Recent care notes -->
+      {% if recent_notes %}
+      <div class="context-panel">
+        <h6><i class="bi bi-journal-text"></i> Recent Care Notes</h6>
+        {% for n in recent_notes %}
+        <div style="font-size:.72rem;border-bottom:1px solid #f1f5f9;padding:3px 0;">
+          <span class="text-muted">{{ n.date }} {{ n.shift }}</span>
+          Mood: {{ n.mood }} · Appetite: {{ n.appetite }} · Fluid: {{ n.fluid_intake_ml }}ml
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <!-- Form column -->
+  <div class="col-12 col-md-8 col-lg-9">
+
+    {% if prev_plan %}
+    <div class="alert alert-info py-2 mb-3" style="font-size:.83rem;">
+      <i class="bi bi-arrow-clockwise"></i>
+      Updating from <strong>Version {{ prev_plan.version }}</strong>
+      ({{ prev_plan.effective_from or 'date unknown' }}).
+      Previous plan will be archived automatically on save.
+    </div>
+    {% endif %}
+
+    <div class="ai-panel mb-3">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="ai-badge"><i class="bi bi-stars"></i> AI Assist</span>
+        <strong style="font-size:.88rem;">AI uses the full patient context panel on the left to generate personalised, clinically relevant content</strong>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="use_ai" id="useAi" value="yes" checked>
+        <label class="form-check-label" for="useAi" style="font-size:.82rem;">
+          Auto-fill all blank sections using AI (uses medications, diagnosis, incidents, wellbeing scores)
+        </label>
+      </div>
+    </div>
+
+    <form method="post" id="carePlanForm">
+      <!-- Header -->
+      <div class="form-section">
+        <h5><i class="bi bi-person-badge"></i> Plan Header</h5>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Effective From</label>
+            <input type="date" name="effective_from" class="form-control" value="{{ today }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Review Date</label>
+            <input type="date" name="review_date" class="form-control" value="{{ next_review }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Reviewed By</label>
+            <input type="text" class="form-control" value="{{ session.get('full_name','') }}" disabled>
+          </div>
+        </div>
+      </div>
+
+      {% set sections = [
+        ('personal_identity_summary','bi-person-heart','Personal Identity Summary','Who is this person? Life history, values, what matters most to them, communication style.'),
+        ('mobility_care_plan','bi-person-walking','Mobility Care Plan','Current mobility level, walking aids, transfer technique, repositioning schedule, falls prevention in context of their risk score.'),
+        ('personal_care_plan','bi-droplet-fill','Personal Care Plan','Bathing/showering preferences, dressing preferences, grooming, products used, dignity considerations.'),
+        ('continence_care_plan','bi-bandaid-fill','Continence Care Plan','Continence needs, products in use, toileting schedule, catheter care if applicable.'),
+        ('nutrition_hydration_plan','bi-cup-hot-fill','Nutrition & Hydration Plan','Diet texture, fluid consistency, fluid targets, specific dietary needs (e.g. diabetic diet, low sodium).'),
+        ('medication_management_plan','bi-capsule-pill','Medication Management Plan','How medications are administered, capacity to consent, PRN guidance, specific administration notes.'),
+        ('cognitive_support_plan','bi-brain','Cognitive Support Plan','Dementia/cognitive impairment support, communication strategies, orientation approaches, sundowning triggers.'),
+        ('emotional_wellbeing_plan','bi-heart-fill','Emotional Wellbeing Plan','Mental health needs, mood patterns, anxiety triggers, comfort strategies, what brings joy.'),
+        ('social_activity_plan','bi-people-fill','Social Activity Plan','Preferred activities, social preferences, hobbies, music, engagement strategies.'),
+        ('end_of_life_preferences','bi-heart','End of Life Preferences','DNACPR status, preferred place of care, advance wishes, spiritual and religious needs.'),
+        ('risk_summary','bi-shield-exclamation','Risk Summary','Key risks (falls, pressure, nutrition) and current mitigation strategies based on latest assessments.'),
+        ('goals_of_care','bi-bullseye','Goals of Care','Short and long-term care goals, resident\'s own stated wishes and priorities.'),
+        ('family_involvement_plan','bi-house-heart','Family Involvement Plan','NOK involvement in care decisions, visit arrangements, communication preferences.'),
+      ] %}
+
+      {% for field, icon, label, hint in sections %}
+      <div class="form-section" id="section_{{ field }}">
+        <h5>
+          <i class="bi {{ icon }}"></i> {{ label }}
+          <div class="float-end d-flex gap-1">
+            <button type="button" class="section-rag-btn btn btn-sm btn-outline-info"
+                    data-section="{{ field }}" data-label="{{ label }}"
+                    title="Retrieve similar records from Knowledge Base">
+              <i class="bi bi-database-fill-gear"></i> Retrieve Context
+            </button>
+            <button type="button" class="section-generate-btn"
+                    data-section="{{ field }}" data-label="{{ label }}">
+              <i class="bi bi-stars"></i> AI Generate
+            </button>
+          </div>
+        </h5>
+        <p class="text-muted" style="font-size:.78rem;">{{ hint }}</p>
+        {% if prev_plan and prev_plan[field] %}
+        <div class="mb-2 p-2 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0;font-size:.75rem;">
+          <strong style="color:#065f46;">Previous:</strong> {{ prev_plan[field][:200] }}{% if prev_plan[field]|length > 200 %}...{% endif %}
+        </div>
+        {% endif %}
+
+        {# RAG retrieved context panel — hidden until retrieval runs #}
+        <div id="rag_panel_{{ field }}" class="rag-context-panel mb-2" style="display:none;"></div>
+
+        <textarea name="{{ field }}" id="{{ field }}" class="form-control" rows="4"
+                  placeholder="Click 'Retrieve Context' for RAG, then 'AI Generate', or type manually...">{% if prev_plan and prev_plan[field] %}{{ prev_plan[field] }}{% endif %}</textarea>
+        <div id="status_{{ field }}" class="mt-1" style="font-size:.75rem;"></div>
+      </div>
+      {% endfor %}
+
+      <div class="d-flex gap-2 mt-3 mb-5">
+        <button type="submit" class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed;">
+          <i class="bi bi-save"></i> Save Personalised Care Plan
+        </button>
+        <a href="{{ url_for('resident_detail', resident_id=r.resident_id) }}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.rag-context-panel {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: .75rem 1rem;
+  font-size: .78rem;
+}
+.rag-context-panel .rag-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: .5rem;
+}
+.rag-chunk {
+  background: #fff;
+  border-left: 3px solid #3b82f6;
+  padding: .4rem .6rem;
+  margin-bottom: .4rem;
+  border-radius: 0 4px 4px 0;
+  font-size: .78rem;
+  line-height: 1.45;
+}
+.rag-chunk .chunk-meta {
+  font-size: .7rem;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+</style>
+
+<script>
+const RESIDENT_DATA = {{ r | tojson }};
+// Store retrieved RAG context per section
+const ragContextStore = {};
+
+// ── RAG Retrieve buttons ─────────────────────────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.section-rag-btn').forEach(btn => {
+  btn.addEventListener('click', async function() {
+    const field = this.dataset.section;
+    const label = this.dataset.label;
+    const panel = document.getElementById('rag_panel_' + field);
+    const statusEl = document.getElementById('status_' + field);
+    this.disabled = true;
+    this.innerHTML = '<i class="bi bi-hourglass-split"></i> Retrieving…';
+    statusEl.innerHTML = '<span class="text-muted">Searching knowledge base...</span>';
+    try {
+      const resp = await fetch('/api/rag-retrieve', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          query: label + ' care plan for resident with ' + (RESIDENT_DATA.primary_diagnosis || ''),
+          resident_id: RESIDENT_DATA.resident_id,
+          section: field,
+          top_k: 5,
+        })
+      });
+      const data = await resp.json();
+      if (data.error || !data.chunks || data.chunks.length === 0) {
+        statusEl.innerHTML = '<span class="text-muted">No records found in index. Build Knowledge Base first.</span>';
+        panel.style.display = 'none';
+      } else {
+        ragContextStore[field] = data.context_block;
+        const srcIcons = {'care_note':'📋','incident':'⚠️','care_plan':'📄','wellbeing':'💚','risk':'🔴'};
+        let html = '<div class="rag-header"><div><i class="bi bi-database-fill-gear text-primary me-1"></i><strong>' + data.num_retrieved + ' retrieved records</strong><span class="badge bg-info text-dark ms-1">' + (data.mode === 'semantic' ? 'Semantic' : 'TF-IDF+LSA') + '</span><span class="badge bg-success ms-1">RAG Active</span></div></div>';
+        for (const chunk of data.chunks) {
+          html += '<div class="rag-chunk"><div class="chunk-meta">' + (srcIcons[chunk.source_type] || '📁') + ' ' + chunk.source_type.replace('_',' ') + (chunk.date ? ' · ' + chunk.date : '') + ' · score: <strong>' + chunk.score.toFixed(3) + '</strong></div>' + chunk.text + '</div>';
+        }
+        html += '<div class="text-muted mt-1" style="font-size:.7rem;">✅ Context will be injected into next AI Generate call. Ref: Lewis et al. (2020)</div>';
+        panel.innerHTML = html;
+        panel.style.display = 'block';
+        statusEl.innerHTML = '<span style="color:#1d4ed8;"><i class="bi bi-database-fill-gear"></i> ' + data.num_retrieved + ' records retrieved — now click <strong>AI Generate</strong></span>';
+      }
+    } catch(e) {
+      statusEl.innerHTML = '<span class="text-danger">Retrieval error: ' + e.message + '</span>';
+    }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-database-fill-gear"></i> Retrieve Context';
+  });
+});
+
+// ── AI Generate buttons (RAG-aware) ──────────────────────────────────────
+document.querySelectorAll('.section-generate-btn').forEach(btn => {
+  btn.addEventListener('click', async function() {
+    const field = this.dataset.section;
+    const label = this.dataset.label;
+    const statusEl = document.getElementById('status_' + field);
+    const textarea = document.getElementById(field);
+    const hasRag = !!ragContextStore[field];
+    this.disabled = true;
+    this.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+    statusEl.innerHTML = hasRag
+      ? '<span class="text-info">Calling AI with RAG context + patient data...</span>'
+      : '<span class="text-muted">Calling AI with patient context (retrieve first for best results)...</span>';
+    const payload = { type: 'care_plan_section', section: label, ...RESIDENT_DATA, rag_context: ragContextStore[field] || '' };
+    try {
+      const resp = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const result = await resp.json();
+      textarea.value = result.text;
+      if (result.ai_used) {
+        statusEl.innerHTML = hasRag
+          ? '<span style="background:#dcfce7;color:#15803d;border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:600;"><i class="bi bi-database-fill-gear"></i> RAG-Enhanced — AI used retrieved context + patient data</span>'
+          : '<span class="ai-badge"><i class="bi bi-stars"></i> AI generated using patient context</span>';
+      } else {
+        statusEl.innerHTML = '<span class="text-muted">Template fallback used</span>';
+      }
+    } catch(e) {
+      statusEl.innerHTML = '<span class="text-danger">Error — type manually.</span>';
+    }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-stars"></i> AI Generate';
+  });
+});
+</script>
+{% endblock %}

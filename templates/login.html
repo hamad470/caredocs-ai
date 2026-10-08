@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Sign In — CareHome Docs</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  body { background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%); min-height:100vh;
+         display:flex; align-items:center; justify-content:center; font-family:'Segoe UI',system-ui,sans-serif; }
+  .login-card { background:#fff; border-radius:16px; padding:2.5rem; width:100%; max-width:420px;
+                box-shadow:0 20px 60px rgba(0,0,0,.3); }
+  .brand-icon { font-size:2.5rem; color:#1e3a5f; }
+  .btn-login { background:#1e3a5f; color:#fff; border:none; padding:.7rem; font-weight:600;
+               border-radius:8px; transition:background .2s; }
+  .btn-login:hover { background:#2563eb; color:#fff; }
+  .demo-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:.8rem;
+              font-size:.78rem; color:#475569; }
+  .demo-box .role { color:#1e3a5f; font-weight:600; }
+  .form-control:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="text-center mb-4">
+    <div class="brand-icon mb-2"><i class="bi bi-house-heart-fill"></i></div>
+    <h4 class="fw-700" style="color:#1e3a5f;">CareHome Docs</h4>
+    <p class="text-muted mb-0" style="font-size:.85rem;">Sunrise Care Home — Staff Portal</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ 'danger' if cat=='error' else 'info' }} py-2" style="font-size:.85rem;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+  {% endwith %}
+
+  <form method="post">
+    <div class="mb-3">
+      <label class="form-label fw-600" style="font-size:.85rem;">Username</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-person"></i></span>
+        <input type="text" name="username" class="form-control" placeholder="Enter username" required autofocus>
+      </div>
+    </div>
+    <div class="mb-4">
+      <label class="form-label fw-600" style="font-size:.85rem;">Password</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-lock"></i></span>
+        <input type="password" name="password" class="form-control" placeholder="Enter password" required>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-login w-100">
+      <i class="bi bi-box-arrow-in-right"></i> Sign In
+    </button>
+  </form>
+
+  <div class="demo-box mt-4">
+    <div class="mb-1"><strong>Demo Accounts</strong></div>
+    <div><span class="role">manager1</span> / manager123 — <em>Manager</em></div>
+    <div><span class="role">senior1</span> / senior123 — <em>Senior Carer</em></div>
+    <div><span class="role">carer1</span> / carer123 — <em>Care Worker</em></div>
+  </div>
+
+  <p class="text-center text-muted mt-3 mb-0" style="font-size:.7rem;">
+    CONFIDENTIAL — Authorised staff only
+  </p>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

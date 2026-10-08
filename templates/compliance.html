@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Compliance Dashboard{% endblock %}
+{% block page_title %}<i class="bi bi-clipboard-check-fill"></i> Compliance Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2">
+    <div class="stat-card text-center">
+      <div class="val">{{ stats.total_residents }}</div>
+      <div class="lbl">Residents</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card text-center">
+      <div class="val text-danger">{{ stats.open_incidents }}</div>
+      <div class="lbl">Open Incidents</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card text-center">
+      <div class="val text-warning">{{ stats.pending_approvals }}</div>
+      <div class="lbl">Pending Approvals</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card text-center">
+      <div class="val text-success">{{ stats.notes_this_week }}</div>
+      <div class="lbl">Notes This Week</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card text-center">
+      <div class="val text-danger">{{ stats.overdue_reviews }}</div>
+      <div class="lbl">At Risk (Red)</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="d-grid gap-2">
+      <a href="{{ url_for('compliance_pdf') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-file-pdf"></i> Export Report
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="d-flex gap-3 mb-3" style="font-size:.8rem;">
+  <span><span class="rag-green">Green</span> — 5+ notes, no open incidents</span>
+  <span><span class="rag-amber">Amber</span> — 3–4 notes, no incidents</span>
+  <span><span class="rag-red">Red</span> — &lt;3 notes or open incident</span>
+</div>
+
+<!-- Compliance Table -->
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead style="background:#1e3a5f;color:#fff;font-size:.8rem;">
+          <tr>
+            <th>Resident</th><th>Room</th><th>Care Type</th>
+            <th>Notes (7d)</th><th>Open Inc.</th>
+            <th>Last Wellbeing</th><th>Last Risk Review</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody style="font-size:.83rem;">
+          {% for r in residents %}
+          <tr>
+            <td>
+              <a href="{{ url_for('resident_detail', resident_id=r.resident_id) }}" class="text-decoration-none fw-bold">
+                {{ r.preferred_name }}
+              </a>
+              <div class="text-muted" style="font-size:.72rem;">{{ r.full_name }}</div>
+            </td>
+            <td>{{ r.room_number }}</td>
+            <td><span class="badge bg-light text-dark">{{ r.care_type }}</span></td>
+            <td>
+              <span class="{{ 'text-success fw-bold' if r.notes_count >= 5 else ('text-warning fw-bold' if r.notes_count >= 3 else 'text-danger fw-bold') }}">
+                {{ r.notes_count }}
+              </span>
+              <span class="text-muted"> / 7 target</span>
+            </td>
+            <td>
+              {% if r.open_incidents > 0 %}
+              <span class="badge bg-danger">{{ r.open_incidents }}</span>
+              {% else %}
+              <span class="text-success"><i class="bi bi-check-circle-fill"></i></span>
+              {% endif %}
+            </td>
+            <td class="{{ 'text-danger' if r.last_wellbeing == 'Never' else '' }}">
+              {{ r.last_wellbeing }}
+            </td>
+            <td class="{{ 'text-danger' if r.last_risk == 'Never' else '' }}">
+              {{ r.last_risk }}
+            </td>
+            <td>
+              <span class="rag-{{ r.rag }}">{{ r.rag | title }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="mt-3 text-muted" style="font-size:.75rem;">
+  <i class="bi bi-info-circle"></i>
+  Compliance targets: minimum 1 care note per day (7 per week), no unresolved incidents, wellbeing assessment at least every 4 weeks.
+</div>
+{% endblock %}

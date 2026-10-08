@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}Knowledge Base — RAG Index{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+  {# ── Header ─────────────────────────────────────────────────────────── #}
+  <div class="d-flex align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-1">
+        <i class="bi bi-database-fill-gear text-primary me-2"></i>RAG Knowledge Base
+      </h1>
+      <p class="text-muted mb-0">
+        Manages the vector index used for Retrieval-Augmented Generation.
+        Retrieved records are injected into care plan generation prompts before the
+        LLM task instruction
+        (<abbr title="Lewis et al. (2020) — Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks">Lewis et al., 2020</abbr>).
+      </p>
+    </div>
+    <div class="ms-auto">
+      <a href="{{ url_for('rag_evaluation') }}" class="btn btn-outline-primary">
+        <i class="bi bi-bar-chart-fill me-1"></i>Evaluation Dashboard
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    {# ── Status Cards ──────────────────────────────────────────────────── #}
+    <div class="col-12">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+              <div class="fs-1 fw-bold text-{% if index_status.built %}success{% else %}secondary{% endif %}">
+                {{ index_status.num_chunks | default(0) | int }}
+              </div>
+              <div class="text-muted small">Indexed Chunks</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+              <div class="fs-1 fw-bold text-info">
+                {{ index_status.num_docs | default(0) | int }}
+              </div>
+              <div class="text-muted small">Source Documents</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+              <div class="fs-5 fw-semibold {% if index_status.built %}text-primary{% else %}text-warning{% endif %}">
+                {% if index_status.built %}
+                  {{ index_status.mode | upper }}
+                {% else %}
+                  Not Built
+                {% endif %}
+              </div>
+              <div class="text-muted small">Retrieval Mode</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+              <div class="fs-6 fw-semibold text-secondary">
+                {% if index_status.built_at %}
+                  {{ index_status.built_at[:16] | replace("T", " ") }}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+              <div class="text-muted small">Last Built</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Index Status Banner ────────────────────────────────────────────── #}
+    <div class="col-12">
+      {% if not index_status.built %}
+      <div class="alert alert-warning d-flex align-items-center">
+        <i class="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
+        <div>
+          <strong>No index found.</strong> Build the knowledge base index below before
+          generating care plans or running evaluation.  Use <strong>TF-IDF mode</strong>
+          for a quick start — it requires no additional packages.
+        </div>
+      </div>
+      {% else %}
+      <div class="alert alert-success d-flex align-items-center">
+        <i class="bi bi-check-circle-fill me-3 fs-4"></i>
+        <div>
+          Index is <strong>active</strong>. Model: <code>{{ index_status.embed_model }}</code>.
+          RAG context will be automatically injected when generating care plan sections.
+          <strong>Rebuild after adding new care notes or care plans.</strong>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    {# ── Build Controls ────────────────────────────────────────────────── #}
+    <div class="col-md-7">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom">
+          <h5 class="mb-0"><i class="bi bi-hammer me-2"></i>Build / Rebuild Index</h5>
+        </div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('knowledge_base_build') }}">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Retrieval Mode</label>
+              <div class="row g-3">
+
+                <div class="col-md-6">
+                  <div class="card border-2 {% if rag_mode == 'tfidf' %}border-primary bg-primary bg-opacity-10{% else %}border-secondary{% endif %} h-100"
+                       style="cursor:pointer" onclick="document.getElementById('mode_tfidf').checked=true;this.closest('.row').querySelectorAll('.card').forEach(c=>c.classList.remove('border-primary','bg-primary','bg-opacity-10'));this.classList.add('border-primary','bg-primary','bg-opacity-10')">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center mb-2">
+                        <input class="form-check-input me-2" type="radio" name="mode"
+                               id="mode_tfidf" value="tfidf"
+                               {% if rag_mode == 'tfidf' %}checked{% endif %}>
+                        <strong>TF-IDF + LSA</strong>
+                        <span class="badge bg-success ms-2">Recommended</span>
+                      </div>
+                      <small class="text-muted">
+                        Sparse retrieval using TF-IDF with 128-dimension LSA projection.
+                        No GPU required. Works immediately. Best for ablation study baseline.
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-md-6">
+                  <div class="card border-2 {% if rag_mode == 'semantic' %}border-primary bg-primary bg-opacity-10{% else %}border-secondary{% endif %} h-100"
+                       style="cursor:pointer" onclick="document.getElementById('mode_semantic').checked=true;this.closest('.row').querySelectorAll('.card').forEach(c=>c.classList.remove('border-primary','bg-primary','bg-opacity-10'));this.classList.add('border-primary','bg-primary','bg-opacity-10')">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center mb-2">
+                        <input class="form-check-input me-2" type="radio" name="mode"
+                               id="mode_semantic" value="semantic"
+                               {% if rag_mode == 'semantic' %}checked{% endif %}>
+                        <strong>Semantic (all-MiniLM-L6-v2)</strong>
+                        {% if not index_status.semantic_available %}
+                          <span class="badge bg-warning text-dark ms-2">Needs install</span>
+                        {% endif %}
+                      </div>
+                      <small class="text-muted">
+                        Dense semantic embeddings via sentence-transformers.
+                        Higher quality retrieval. Requires:
+                        <code>pip install sentence-transformers transformers torch</code>
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-database-fill-add me-1"></i>
+                {% if index_status.built %}Rebuild Index{% else %}Build Index{% endif %}
+              </button>
+              {% if index_status.built and current_user_role == 'manager' %}
+              <a href="#" data-bs-toggle="modal" data-bs-target="#clearModal"
+                 class="btn btn-outline-danger">
+                <i class="bi bi-trash me-1"></i>Clear Index
+              </a>
+              {% endif %}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {# ── Architecture Info ─────────────────────────────────────────────── #}
+    <div class="col-md-5">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-bottom">
+          <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>RAG Architecture</h5>
+        </div>
+        <div class="card-body small text-muted">
+          <p class="mb-2"><strong>Indexed Sources</strong></p>
+          <ul class="mb-3">
+            <li>Care notes (narrative + concerns + actions)</li>
+            <li>Incident records (description + lessons learned)</li>
+            <li>Previous care plan sections (each section indexed separately)</li>
+            <li>Wellbeing assessments (summary + outcomes)</li>
+            <li>Risk assessment narratives</li>
+          </ul>
+          <p class="mb-2"><strong>Chunking Strategy</strong></p>
+          <ul class="mb-3">
+            <li>80-word chunks with 20-word overlap</li>
+            <li>Sentence-boundary aware splitting</li>
+            <li>Metadata: resident_id, source_type, section, date</li>
+          </ul>
+          <p class="mb-2"><strong>Retrieval Safety</strong></p>
+          <ul class="mb-0">
+            <li>Resident isolation enforced <em>before</em> FAISS search</li>
+            <li>Cross-resident retrieval architecturally impossible</li>
+            <li>Every retrieval event logged to <code>rag_audit_log</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    {# ── GDPR Audit Log ────────────────────────────────────────────────── #}
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Retrieval Audit Log (last 20)</h5>
+          <small class="text-muted">3-year retention — CQC / GDPR compliant</small>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Time</th>
+                  <th>Resident</th>
+                  <th>Section</th>
+                  <th>Chunks Retrieved</th>
+                  <th>Mode</th>
+                  <th>Generated By</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% set audit_rows = [] %}
+                {% for row in rag_audit_rows | default([]) %}
+                <tr>
+                  <td class="text-muted small">{{ row.retrieved_at[:16] | replace("T"," ") }}</td>
+                  <td>{{ row.resident_id }}</td>
+                  <td><code>{{ row.section }}</code></td>
+                  <td><span class="badge bg-primary">{{ row.num_chunks_retrieved }}</span></td>
+                  <td><span class="badge bg-secondary">{{ row.mode | upper }}</span></td>
+                  <td>{{ row.generated_by }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-3">
+                    No retrieval events logged yet. Build the index and generate a care plan.
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>{# /row #}
+</div>
+
+{# Clear modal #}
+<div class="modal fade" id="clearModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger">Clear Knowledge Base</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        This will permanently delete the FAISS index files. Care plan generation will fall
+        back to non-RAG mode until you rebuild. Continue?
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form method="POST" action="{{ url_for('knowledge_base_clear') }}" class="d-inline">
+          <button class="btn btn-danger">Clear Index</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

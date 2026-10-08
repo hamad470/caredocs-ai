@@ -1,0 +1,21 @@
+# Core web framework
+flask>=3.0.0
+
+# Document generation
+reportlab>=4.1.0
+openpyxl>=3.1.0
+
+# RAG Pipeline — Retrieval-Augmented Generation
+scikit-learn>=1.3.0      # TF-IDF + TruncatedSVD (LSA) embeddings — no GPU needed
+faiss-cpu>=1.7.4         # FAISS vector store for similarity search
+numpy>=1.24              # vector maths for fusion, MMR and recency weighting
+rouge-score>=0.1.2       # ROUGE-L evaluation metric (Lin, 2004)
+
+# Advanced RAG chat assistant ("Ask the Records") adds no further dependencies:
+#   BM25          — implemented in rag_advanced.py (pure Python, no rank_bm25)
+#   LLM providers — Claude / Gemini / Groq called over urllib, no vendor SDKs
+
+# Optional: neural embeddings. The pipeline detects and uses these automatically
+# if present; nothing else changes, which keeps the sparse/dense ablation fair.
+#   pip install sentence-transformers
+# sentence-transformers>=2.7.0

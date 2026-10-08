@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ incident.incident_id }}{% endblock %}
+{% block page_title %}<i class="bi bi-exclamation-triangle-fill text-danger"></i> {{ incident.incident_id }}{% endblock %}
+
+{% block content %}
+<div class="d-flex gap-2 mb-3">
+  <a href="{{ url_for('incidents_list') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> All Incidents</a>
+  <a href="{{ url_for('incident_pdf', inc_id=incident.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-pdf"></i> Export PDF</a>
+  {% if incident.status == 'open' and session.get('role') in ('manager','senior_carer') %}
+  <form method="post" action="{{ url_for('incident_close', inc_id=incident.id) }}">
+    <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check-circle"></i> Close Incident</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="form-section">
+      <h5>Incident Details</h5>
+      <table class="table table-sm table-borderless mb-0" style="font-size:.85rem;">
+        <tr><td class="text-muted">ID</td><td><code>{{ incident.incident_id }}</code></td></tr>
+        <tr><td class="text-muted">Date</td><td>{{ incident.date }}</td></tr>
+        <tr><td class="text-muted">Time</td><td>{{ incident.time }}</td></tr>
+        <tr><td class="text-muted">Shift</td><td>{{ incident.shift }}</td></tr>
+        <tr><td class="text-muted">Type</td><td>{{ incident.incident_type }}</td></tr>
+        <tr><td class="text-muted">Severity</td><td>
+          <span class="badge bg-{{ 'danger' if incident.severity in ('Major','Critical') else 'warning text-dark' }}">{{ incident.severity }}</span>
+        </td></tr>
+        <tr><td class="text-muted">Location</td><td>{{ incident.location }}</td></tr>
+        <tr><td class="text-muted">Status</td><td>
+          <span class="badge badge-{{ incident.status }}">{{ incident.status | title }}</span>
+        </td></tr>
+      </table>
+    </div>
+    <div class="form-section">
+      <h5>Notifications</h5>
+      <table class="table table-sm table-borderless mb-0" style="font-size:.85rem;">
+        <tr><td class="text-muted">GP Notified</td><td>{{ incident.gp_notified }}</td></tr>
+        <tr><td class="text-muted">Family Notified</td><td>{{ incident.family_notified }}</td></tr>
+        <tr><td class="text-muted">CQC Notification</td><td>{{ incident.cqc_notification }}</td></tr>
+        <tr><td class="text-muted">Investigation</td><td>{{ incident.investigation_required }}</td></tr>
+        <tr><td class="text-muted">Risk Updated</td><td>{{ incident.risk_assessment_updated }}</td></tr>
+        <tr><td class="text-muted">Care Plan Updated</td><td>{{ incident.care_plan_updated }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="form-section">
+      <h5>Resident</h5>
+      <table class="table table-sm table-borderless mb-0" style="font-size:.85rem;">
+        <tr><td class="text-muted">Name</td><td><strong>{{ r.full_name }}</strong></td></tr>
+        <tr><td class="text-muted">Room</td><td>{{ r.room_number }}</td></tr>
+        <tr><td class="text-muted">Diagnosis</td><td>{{ r.primary_diagnosis }}</td></tr>
+        <tr><td class="text-muted">DNACPR</td><td>{{ r.dnacpr_status }}</td></tr>
+        <tr><td class="text-muted">GP</td><td>{{ r.gp_name }}</td></tr>
+      </table>
+    </div>
+    <div class="form-section">
+      <h5>Medical Response</h5>
+      <table class="table table-sm table-borderless mb-0" style="font-size:.85rem;">
+        <tr><td class="text-muted">Injuries</td><td>{{ incident.injuries or 'None noted' }}</td></tr>
+        <tr><td class="text-muted">Medical Attn</td><td>{{ incident.medical_attention }}</td></tr>
+        <tr><td class="text-muted">Witness</td><td>{{ incident.witness_name or '—' }}</td></tr>
+        <tr><td class="text-muted">First on Scene</td><td>{{ incident.staff_first_on_scene }}</td></tr>
+        {% if incident.manager_sign_off %}
+        <tr><td class="text-muted">Signed Off</td><td>{{ incident.manager_sign_off }}</td></tr>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="form-section">
+      <h5>Narratives {% if incident.ai_generated %}<span class="ai-badge ms-1"><i class="bi bi-stars"></i> AI</span>{% endif %}</h5>
+      {% for label, text in [
+        ('Description', incident.description),
+        ('Immediate Actions', incident.immediate_actions),
+        ('Outcome', incident.outcome),
+        ('Investigation Summary', incident.investigation_summary),
+        ('Lessons Learned', incident.lessons_learned),
+        ('Preventative Actions', incident.preventative_actions),
+      ] %}
+        {% if text %}
+        <div class="mb-2">
+          <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;">{{ label }}</div>
+          <div class="narrative-box">{{ text }}</div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

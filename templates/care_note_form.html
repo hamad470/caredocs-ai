@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}New Care Note{% endblock %}
+{% block page_title %}<i class="bi bi-journal-plus"></i> New Care Note{% endblock %}
+
+{% block content %}
+<form method="post" id="careNoteForm">
+
+  <!-- AI Panel -->
+  <div class="ai-panel">
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <span class="ai-badge"><i class="bi bi-stars"></i> AI Assist</span>
+      <strong style="font-size:.88rem;">Auto-generate narrative from form data</strong>
+    </div>
+    <p class="mb-2" style="font-size:.82rem;color:#4c1d95;">
+      Fill in the form fields below, then click <strong>Generate AI Narrative</strong> to create a professional
+      care note narrative automatically. You can edit it before saving.
+    </p>
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" name="use_ai" id="useAi" value="yes" checked>
+      <label class="form-check-label" for="useAi" style="font-size:.82rem;">
+        Use AI to generate narrative if field is left blank
+      </label>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- Left column -->
+    <div class="col-12 col-md-8">
+
+      <!-- Resident & Shift -->
+      <div class="form-section">
+        <h5><i class="bi bi-person-badge"></i> Resident & Shift</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Resident <span class="text-danger">*</span></label>
+            <select name="resident_id" class="form-select" required>
+              <option value="">— Select resident —</option>
+              {% for r in residents %}
+              <option value="{{ r.resident_id }}">{{ r.preferred_name }} ({{ r.full_name }}) — Rm {{ r.room_number }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Date <span class="text-danger">*</span></label>
+            <input type="date" name="date" class="form-control" value="{{ today }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Shift <span class="text-danger">*</span></label>
+            <select name="shift" class="form-select" required>
+              <option value="Morning">Morning (07:00–15:00)</option>
+              <option value="Afternoon">Afternoon (15:00–22:00)</option>
+              <option value="Night">Night (22:00–07:00)</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Note Type</label>
+            <select name="note_type" class="form-select">
+              <option value="Daily Care">Daily Care</option>
+              <option value="Personal Care">Personal Care</option>
+              <option value="Clinical Observation">Clinical Observation</option>
+              <option value="Social/Activity">Social/Activity</option>
+              <option value="Nutrition/Hydration">Nutrition/Hydration</option>
+              <option value="End of Life">End of Life</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Observations -->
+      <div class="form-section">
+        <h5><i class="bi bi-eye"></i> Shift Observations</h5>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Personal Care Completed</label>
+            <select name="personal_care" class="form-select">
+              <option value="Completed">Completed</option>
+              <option value="Partially completed">Partially completed</option>
+              <option value="Refused">Refused</option>
+              <option value="Assisted">Assisted</option>
+              <option value="Independent">Independent</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Mood Observed</label>
+            <select name="mood" class="form-select">
+              <option>Happy and engaged</option>
+              <option>Settled</option>
+              <option>Anxious</option>
+              <option>Confused</option>
+              <option>Distressed</option>
+              <option>Low mood</option>
+              <option>Agitated</option>
+              <option>Tired/drowsy</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Appetite</label>
+            <select name="appetite" class="form-select">
+              <option>Good</option>
+              <option>Fair</option>
+              <option>Poor</option>
+              <option>Refused meal</option>
+              <option>Excellent</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fluid Intake (ml)</label>
+            <input type="number" name="fluid_intake_ml" class="form-control" min="0" max="5000" placeholder="e.g. 600">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Weight (kg)</label>
+            <input type="number" name="weight_kg" class="form-control" step="0.1" placeholder="e.g. 68.5">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Skin Checked</label>
+            <select name="skin_checked" class="form-select">
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Repositioned</label>
+            <select name="repositioned" class="form-select">
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+              <option value="N/A">N/A</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Skin Concern Noted</label>
+            <input type="text" name="skin_concern" class="form-control" placeholder="Describe if any...">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Sleep Quality</label>
+            <select name="sleep_quality" class="form-select">
+              <option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Falls This Shift</label>
+            <input type="number" name="falls_this_shift" class="form-control" value="0" min="0">
+          </div>
+        </div>
+      </div>
+
+      <!-- Pain & Activity -->
+      <div class="form-section">
+        <h5><i class="bi bi-activity"></i> Pain & Activity</h5>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Pain Observed</label>
+            <select name="pain_observed" class="form-select">
+              <option value="No">No</option>
+              <option value="Yes - mild">Yes — Mild</option>
+              <option value="Yes - moderate">Yes — Moderate</option>
+              <option value="Yes - severe">Yes — Severe</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Pain Location</label>
+            <input type="text" name="pain_location" class="form-control" placeholder="e.g. Left hip">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Activity Participation</label>
+            <select name="activity" class="form-select">
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+              <option value="Offered - declined">Offered — Declined</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Activity Description</label>
+            <input type="text" name="activity_description" class="form-control"
+                   placeholder="e.g. Morning exercise group, reminiscence session...">
+          </div>
+        </div>
+      </div>
+
+      <!-- Narrative Section -->
+      <div class="form-section">
+        <h5><i class="bi bi-pencil-square"></i> Care Narrative</h5>
+        <div class="mb-2 d-flex gap-2 align-items-center">
+          <button type="button" class="btn btn-sm" id="generateBtn"
+                  style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;">
+            <i class="bi bi-stars"></i> Generate AI Narrative
+          </button>
+          <span id="genStatus" class="text-muted" style="font-size:.8rem;"></span>
+        </div>
+        <textarea name="care_narrative" id="careNarrative" class="form-control"
+                  rows="5" placeholder="AI will generate this, or write your own narrative here..."></textarea>
+        <div class="form-text">Leave blank and use AI Assist above, or type your own.</div>
+      </div>
+
+      <!-- Concerns & Actions -->
+      <div class="form-section">
+        <h5><i class="bi bi-flag"></i> Concerns & Actions</h5>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Concerns Flagged</label>
+            <textarea name="concerns" class="form-control" rows="2"
+                      placeholder="Any clinical or care concerns to flag..."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Actions Taken</label>
+            <textarea name="actions_taken" class="form-control" rows="2"
+                      placeholder="What actions were taken in response to concerns..."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Handover Notes</label>
+            <textarea name="handover_notes" class="form-control" rows="2"
+                      placeholder="Key points to pass to the next shift..."></textarea>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: summary panel -->
+    <div class="col-12 col-md-4">
+      <div class="form-section" style="position:sticky;top:70px;">
+        <h5><i class="bi bi-info-circle"></i> Submission</h5>
+        {% if can_approve %}
+        <div class="alert alert-success py-2" style="font-size:.82rem;">
+          <i class="bi bi-check-circle-fill"></i> As a <strong>{{ session.get('role','').replace('_',' ').title() }}</strong>,
+          your notes are auto-approved.
+        </div>
+        {% else %}
+        <div class="alert alert-warning py-2" style="font-size:.82rem;">
+          <i class="bi bi-clock-fill"></i> Note will be submitted for approval by a Senior Carer or Manager.
+        </div>
+        {% endif %}
+
+        <div class="mb-3">
+          <label class="form-label fw-600">Staff Name</label>
+          <input type="text" class="form-control" value="{{ session.get('full_name','') }}" disabled>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-600">Role</label>
+          <input type="text" class="form-control" value="{{ session.get('role','').replace('_',' ').title() }}" disabled>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 mb-2">
+          <i class="bi bi-save"></i> Save Care Note
+        </button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary w-100">Cancel</a>
+
+        <hr>
+        <div style="font-size:.75rem;color:#64748b;">
+          <strong>Checklist:</strong>
+          <ul class="mb-0 ps-3 mt-1">
+            <li>Resident & shift selected</li>
+            <li>Personal care documented</li>
+            <li>Fluid intake recorded</li>
+            <li>Skin checked</li>
+            <li>Any falls recorded</li>
+            <li>Narrative completed</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('generateBtn').addEventListener('click', async function() {
+  const btn = this;
+  const status = document.getElementById('genStatus');
+  const form = document.getElementById('careNoteForm');
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+  status.textContent = 'Calling AI...';
+
+  const data = {
+    type: 'care_note',
+    preferred_name: form.querySelector('[name=resident_id]')?.selectedOptions[0]?.text?.split(' (')[0] || 'Resident',
+    shift:          form.querySelector('[name=shift]')?.value,
+    personal_care:  form.querySelector('[name=personal_care]')?.value,
+    mood:           form.querySelector('[name=mood]')?.value,
+    appetite:       form.querySelector('[name=appetite]')?.value,
+    fluid_intake_ml:form.querySelector('[name=fluid_intake_ml]')?.value,
+    activity_description: form.querySelector('[name=activity_description]')?.value,
+    pain_observed:  form.querySelector('[name=pain_observed]')?.value,
+    pain_location:  form.querySelector('[name=pain_location]')?.value,
+    concerns:       form.querySelector('[name=concerns]')?.value,
+    actions_taken:  form.querySelector('[name=actions_taken]')?.value,
+  };
+
+  try {
+    const resp = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    const result = await resp.json();
+    document.getElementById('careNarrative').value = result.text;
+    status.innerHTML = result.ai_used
+      ? '<span class="ai-badge"><i class="bi bi-stars"></i> AI generated</span>'
+      : '<span class="text-muted">Template used (no API key)</span>';
+  } catch(e) {
+    status.textContent = 'Error — please type narrative manually.';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-stars"></i> Generate AI Narrative';
+});
+</script>
+{% endblock %}

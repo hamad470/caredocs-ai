@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Alert Email Queue{% endblock %}
+{% block page_title %}<i class="bi bi-bell-fill text-danger"></i> Alert Emails{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <span class="text-muted" style="font-size:.85rem;">{{ emails|length }} total alert email(s)</span>
+    {% if not email_configured %}
+    <span class="badge bg-warning text-dark ms-2">SMTP not configured — emails logged only</span>
+    {% else %}
+    <span class="badge bg-success ms-2"><i class="bi bi-check-circle"></i> SMTP configured</span>
+    {% endif %}
+  </div>
+</div>
+
+{% if not emails %}
+<div class="alert alert-light">
+  <i class="bi bi-check-circle-fill text-success"></i>
+  No alert emails pending. High-severity incidents and Very High risk assessments will appear here for approval.
+</div>
+{% endif %}
+
+{% for em in emails %}
+<div class="card border-0 shadow-sm mb-2"
+     style="border-left:4px solid {% if em.status=='pending_approval' %}#dc2626{% elif em.status=='sent' %}#059669{% elif em.status=='rejected' %}#94a3b8{% else %}#2563eb{% endif %} !important;">
+  <div class="card-body py-2">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <span class="badge {% if em.status=='pending_approval' %}bg-danger{% elif em.status=='sent' %}bg-success{% elif em.status=='rejected' %}bg-secondary{% else %}bg-primary{% endif %} me-2">
+          {{ em.status.replace('_',' ').title() }}
+        </span>
+        <strong>{{ em.subject }}</strong>
+        {% if em.ai_drafted %}
+        <span class="ai-badge ms-2"><i class="bi bi-stars"></i> AI Drafted</span>
+        {% endif %}
+      </div>
+      <div class="d-flex gap-1 align-items-center">
+        <span class="text-muted" style="font-size:.75rem;">{{ em.created[:16].replace('T',' ') }}</span>
+        {% if em.status == 'pending_approval' %}
+        <a href="{{ url_for('email_view', eq_id=em.id) }}" class="btn btn-sm btn-danger">
+          <i class="bi bi-check-circle"></i> Review & Approve
+        </a>
+        {% else %}
+        <a href="{{ url_for('email_view', eq_id=em.id) }}" class="btn btn-sm btn-outline-secondary">View</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="mt-1" style="font-size:.8rem;color:#64748b;">
+      <strong>Resident:</strong> {{ em.preferred_name }} — Rm {{ em.room_number }} &nbsp;|&nbsp;
+      <strong>To:</strong> {{ em.to_name }} ({{ em.to_email }}) &nbsp;|&nbsp;
+      <strong>By:</strong> {{ em.generated_by }}
+      {% if em.approved_by %}&nbsp;|&nbsp;<strong>Approved by:</strong> {{ em.approved_by }}{% endif %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<div class="card border-0 shadow-sm mt-4">
+  <div class="card-body" style="font-size:.82rem;color:#64748b;">
+    <strong><i class="bi bi-info-circle"></i> How this works:</strong>
+    When a <span class="badge bg-danger">Major</span> or <span class="badge bg-danger">Critical</span> incident is recorded,
+    or a <span class="badge bg-warning text-dark">High</span> / <span class="badge bg-danger">Very High</span> risk assessment is saved,
+    an AI-drafted alert email is automatically generated and placed here for approval.
+    The person on duty reviews and approves it — only then is it sent to the manager.
+    {% if not email_configured %}
+    <br><strong>To enable real email sending:</strong> set environment variables
+    <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code> before starting the app.
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

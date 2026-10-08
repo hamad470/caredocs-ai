@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Family Communication{% endblock %}
+{% block page_title %}<i class="bi bi-envelope-fill text-info"></i> Log Family Communication{% endblock %}
+
+{% block content %}
+<form method="post" id="familyCommForm">
+  <div class="ai-panel mb-3">
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span class="ai-badge"><i class="bi bi-stars"></i> AI Assist</span>
+      <strong style="font-size:.88rem;">AI drafts the communication body automatically</strong>
+    </div>
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" name="use_ai" id="useAi" value="yes" checked>
+      <label class="form-check-label" for="useAi" style="font-size:.82rem;">Use AI to draft message body if left blank</label>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-md-8">
+      <div class="form-section">
+        <h5><i class="bi bi-person-badge"></i> Communication Details</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Resident <span class="text-danger">*</span></label>
+            <select name="resident_id" class="form-select" required id="residentSelect">
+              <option value="">— Select resident —</option>
+              {% for r in residents %}
+              <option value="{{ r.resident_id }}"
+                      data-nok="{{ r.nok_name }}"
+                      data-nokphone="{{ r.nok_phone }}"
+                      data-nokban="{{ r.nok_relationship }}">
+                {{ r.preferred_name }} — Rm {{ r.room_number }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Date <span class="text-danger">*</span></label>
+            <input type="date" name="date" class="form-control" value="{{ today }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Type <span class="text-danger">*</span></label>
+            <select name="comm_type" class="form-select" required>
+              <option value="Phone Call">Phone Call</option>
+              <option value="Email">Email</option>
+              <option value="Letter">Letter</option>
+              <option value="Visit">Visit (in person)</option>
+              <option value="Meeting">Formal Meeting</option>
+              <option value="Text Message">Text Message</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Direction <span class="text-danger">*</span></label>
+            <select name="direction" class="form-select" required>
+              <option value="Outbound">Outbound (we contacted them)</option>
+              <option value="Inbound">Inbound (they contacted us)</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Family Contact <span class="text-danger">*</span></label>
+            <input type="text" name="family_contact" id="familyContact" class="form-control" required
+                   placeholder="Family member name">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Trigger / Reason</label>
+            <select name="trigger_event" class="form-select">
+              <option value="Routine Update">Routine Update</option>
+              <option value="Incident">Incident</option>
+              <option value="Health Concern">Health Concern</option>
+              <option value="Care Plan Review">Care Plan Review</option>
+              <option value="Medication Change">Medication Change</option>
+              <option value="Hospital Admission">Hospital Admission/Discharge</option>
+              <option value="Family Request">Family Request</option>
+              <option value="End of Life">End of Life</option>
+              <option value="Complaint">Complaint</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Subject / Title</label>
+            <input type="text" name="subject" class="form-control"
+                   placeholder="e.g. Re: Margaret Brown — Monthly Update">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h5><i class="bi bi-pencil-square"></i> Communication Body</h5>
+        <div class="mb-2 d-flex gap-2">
+          <button type="button" id="generateBtn" class="btn btn-sm"
+                  style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;">
+            <i class="bi bi-stars"></i> AI Draft Message
+          </button>
+          <span id="genStatus" class="text-muted align-self-center" style="font-size:.8rem;"></span>
+        </div>
+        <textarea name="body" id="commBody" class="form-control" rows="10" required
+                  placeholder="Leave blank and click 'AI Draft Message' above, or write the communication here..."></textarea>
+        <div class="form-text">For emails/letters this is the full message. For phone calls, summarise the conversation.</div>
+      </div>
+
+      <div class="form-section">
+        <h5><i class="bi bi-reply-fill"></i> Family Response & Follow-up</h5>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Family Response Summary</label>
+            <textarea name="family_response" class="form-control" rows="3"
+                      placeholder="How did the family respond? Any questions or concerns raised?"></textarea>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Follow-up Required?</label>
+            <select name="follow_up" class="form-select">
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Follow-up Actions</label>
+            <textarea name="follow_up_actions" class="form-control" rows="2"
+                      placeholder="What needs to be followed up and by when?"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="form-section" style="position:sticky;top:70px;">
+        <h5>Submit</h5>
+        <div class="mb-3">
+          <label class="form-label">Staff Member</label>
+          <input type="text" class="form-control" value="{{ session.get('full_name','') }}" disabled>
+        </div>
+        <div id="nokPanel" class="alert alert-light py-2 mb-3" style="font-size:.78rem;display:none;">
+          <strong>NOK Details:</strong>
+          <div id="nokDetails"></div>
+        </div>
+        <button type="submit" class="btn btn-info text-white w-100 mb-2">
+          <i class="bi bi-save"></i> Log Communication
+        </button>
+        <a href="{{ url_for('family_comms_list') }}" class="btn btn-outline-secondary w-100">Cancel</a>
+        <hr>
+        <div style="font-size:.75rem;color:#64748b;">
+          After saving, export to XLSX from the resident's record to get the full communication log in dataset format.
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-fill NOK name when resident selected
+document.getElementById('residentSelect').addEventListener('change', function() {
+  const opt = this.selectedOptions[0];
+  const nok = opt.dataset.nok || '';
+  const phone = opt.dataset.nokphone || '';
+  const rel = opt.dataset.nokban || '';
+  document.getElementById('familyContact').value = nok;
+  if (nok) {
+    document.getElementById('nokPanel').style.display = 'block';
+    document.getElementById('nokDetails').innerHTML =
+      `${nok} (${rel}) — ${phone}`;
+  }
+});
+
+document.getElementById('generateBtn').addEventListener('click', async function() {
+  const btn = this; const status = document.getElementById('genStatus');
+  const form = document.getElementById('familyCommForm');
+  btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Drafting...';
+  const resOpt = form.querySelector('[name=resident_id]')?.selectedOptions[0];
+  const data = {
+    type: 'family_comm',
+    preferred_name: resOpt?.text?.split(' —')[0] || 'Resident',
+    family_contact: form.querySelector('[name=family_contact]')?.value,
+    comm_type:      form.querySelector('[name=comm_type]')?.value,
+    subject:        form.querySelector('[name=subject]')?.value,
+    trigger_event:  form.querySelector('[name=trigger_event]')?.value,
+    staff_member:   '{{ session.get("full_name","") }}',
+  };
+  try {
+    const resp = await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    const result = await resp.json();
+    document.getElementById('commBody').value = result.text;
+    status.innerHTML = result.ai_used ? '<span class="ai-badge"><i class="bi bi-stars"></i> AI drafted</span>' : '<span class="text-muted">Template used</span>';
+  } catch(e) { status.textContent = 'Error — write manually.'; }
+  btn.disabled = false; btn.innerHTML = '<i class="bi bi-stars"></i> AI Draft Message';
+});
+</script>
+{% endblock %}

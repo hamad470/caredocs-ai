@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+{% set now = now if now is defined else '' %}
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="lbl"><i class="bi bi-people-fill text-primary"></i> Total Residents</div>
+      <div class="val">{{ total_res }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="lbl"><i class="bi bi-exclamation-triangle-fill text-danger"></i> Open Incidents</div>
+      <div class="val text-danger">{{ open_inc }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="lbl"><i class="bi bi-clock-fill text-warning"></i> Pending Approvals</div>
+      <div class="val text-warning">{{ pending_app }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="lbl"><i class="bi bi-journal-check text-success"></i> Notes This Week</div>
+      <div class="val text-success">{{ notes_week }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- AI Status Banner -->
+{% if ai_status %}
+<div class="alert py-2 mb-3" style="background:#ede9fe;border:1px solid #c4b5fd;">
+  <div class="d-flex align-items-center gap-2">
+    <span class="ai-badge"><i class="bi bi-stars"></i> AI Status</span>
+    {% if ai_status.gemini %}
+      <span class="badge bg-success">Gemini &check;</span>
+      <span class="text-muted" style="font-size:.78rem;">
+        {{ ai_status.n_keys }} key{{ '' if ai_status.n_keys == 1 else 's' }} configured
+        &middot; {{ ai_status.gemini_model }}
+      </span>
+    {% else %}
+      <span class="badge bg-secondary">Offline template</span>
+      <span class="text-muted" style="font-size:.78rem;">
+        Add a Gemini key in AI Settings for generated narratives. The records stay complete
+        without one.
+      </span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Quick Actions -->
+<div class="row g-2 mb-4">
+  <div class="col-12"><h6 class="text-muted text-uppercase" style="font-size:.7rem;letter-spacing:1px;">Quick Actions</h6></div>
+  <div class="col-6 col-md-2">
+    <a href="{{ url_for('care_note_new') }}" class="btn btn-outline-primary w-100 d-flex flex-column align-items-center py-3">
+      <i class="bi bi-journal-plus fs-4"></i><small class="mt-1">Care Note</small>
+    </a>
+  </div>
+  <div class="col-6 col-md-2">
+    <a href="{{ url_for('incident_new') }}" class="btn btn-outline-danger w-100 d-flex flex-column align-items-center py-3">
+      <i class="bi bi-exclamation-triangle fs-4"></i><small class="mt-1">Incident</small>
+    </a>
+  </div>
+  <div class="col-6 col-md-2">
+    <a href="{{ url_for('handover_new') }}" class="btn btn-outline-info w-100 d-flex flex-column align-items-center py-3">
+      <i class="bi bi-arrow-left-right fs-4"></i><small class="mt-1">Handover</small>
+    </a>
+  </div>
+  <div class="col-6 col-md-2">
+    <a href="{{ url_for('wellbeing_new') }}" class="btn btn-outline-success w-100 d-flex flex-column align-items-center py-3">
+      <i class="bi bi-heart-pulse fs-4"></i><small class="mt-1">Wellbeing</small>
+    </a>
+  </div>
+  <div class="col-6 col-md-2">
+    <a href="{{ url_for('risk_new') }}" class="btn btn-outline-warning w-100 d-flex flex-column align-items-center py-3">
+      <i class="bi bi-shield-exclamation fs-4"></i><small class="mt-1">Risk</small>
+    </a>
+  </div>
+  <div class="col-6 col-md-2">
+    <a href="{{ url_for('mar_record', mid=1) if session.get('role') != 'readonly' else '#' }}" class="btn btn-outline-secondary w-100 d-flex flex-column align-items-center py-3">
+      <i class="bi bi-capsule-pill fs-4"></i><small class="mt-1">MAR Entry</small>
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Residents Overview -->
+  <div class="col-12 col-lg-7">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-600" style="color:#1e3a5f;">Residents at a Glance</h6>
+        <a href="{{ url_for('residents_list') }}" class="btn btn-sm btn-outline-primary">View All</a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead style="background:#f8fafc;font-size:.78rem;">
+              <tr>
+                <th>Resident</th><th>Room</th><th>Type</th>
+                <th>Notes (7d)</th><th>Open Inc.</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody style="font-size:.82rem;">
+              {% for r in residents %}
+              <tr>
+                <td>
+                  <a href="{{ url_for('resident_detail', resident_id=r.resident_id) }}" class="text-decoration-none fw-600">
+                    {{ r.preferred_name }}
+                  </a>
+                  <div class="text-muted" style="font-size:.72rem;">{{ r.primary_diagnosis }}</div>
+                </td>
+                <td>{{ r.room_number }}</td>
+                <td><span class="badge bg-light text-dark">{{ r.care_type }}</span></td>
+                <td>
+                  <span class="{{ 'text-success' if r.note_count >= 5 else ('text-warning' if r.note_count >= 2 else 'text-danger') }}">
+                    {{ r.note_count }}
+                  </span>
+                </td>
+                <td>
+                  {% if r.open_incidents > 0 %}
+                    <span class="badge bg-danger">{{ r.open_incidents }}</span>
+                  {% else %}
+                    <span class="text-muted">0</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="rag-{{ r.rag }}">{{ r.rag | title }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div class="col-12 col-lg-5">
+    <!-- Open Incidents -->
+    {% if recent_incidents %}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-600 text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Open Incidents</h6>
+        <a href="{{ url_for('incidents_list') }}" class="btn btn-sm btn-outline-danger">View All</a>
+      </div>
+      <div class="card-body p-0">
+        {% for inc in recent_incidents %}
+        <div class="px-3 py-2 border-bottom" style="font-size:.82rem;">
+          <div class="d-flex justify-content-between">
+            <strong>{{ inc.preferred_name }}</strong>
+            <span class="badge bg-{{ 'danger' if inc.severity=='Major' else 'warning text-dark' }}">{{ inc.severity }}</span>
+          </div>
+          <div class="text-muted">{{ inc.incident_type }} — {{ inc.date }}</div>
+          <a href="{{ url_for('incident_view', inc_id=inc.id) }}" class="text-decoration-none" style="font-size:.75rem;">View →</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Pending Approvals -->
+    {% if pending_app > 0 and session.get('role') in ('manager','senior_carer') %}
+    <div class="card border-0 shadow-sm mb-3" style="border-left:4px solid #d97706 !important;">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-clock-fill text-warning fs-4"></i>
+          <div>
+            <div class="fw-600">{{ pending_app }} note(s) awaiting approval</div>
+            <a href="{{ url_for('residents_list') }}" class="text-decoration-none" style="font-size:.8rem;">Review →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Care Notes -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white">
+        <h6 class="mb-0 fw-600" style="color:#1e3a5f;">Recent Care Notes</h6>
+      </div>
+      <div class="card-body p-0">
+        {% for note in recent_notes %}
+        <div class="px-3 py-2 border-bottom" style="font-size:.82rem;">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <strong>{{ note.preferred_name }}</strong>
+              <span class="text-muted ms-1">Rm {{ note.room_number }}</span>
+              {% if note.ai_generated %}<span class="ai-badge ms-1"><i class="bi bi-stars"></i> AI</span>{% endif %}
+            </div>
+            <span class="badge badge-{{ note.status | replace('pending_approval','pending') }}">
+              {{ note.status | replace('_',' ') | title }}
+            </span>
+          </div>
+          <div class="text-muted">{{ note.shift }} — {{ note.date }} — {{ note.staff_name }}</div>
+          <a href="{{ url_for('care_note_view', note_id=note.id) }}" class="text-decoration-none" style="font-size:.75rem;">View →</a>
+        </div>
+        {% else %}
+        <div class="p-3 text-muted" style="font-size:.85rem;">No care notes yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

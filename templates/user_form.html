@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Add User{% endblock %}
+{% block page_title %}<i class="bi bi-person-plus"></i> Add User{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12 col-md-5">
+    <div class="form-section">
+      <h5>New User Account</h5>
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label">Full Name <span class="text-danger">*</span></label>
+          <input type="text" name="full_name" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Username <span class="text-danger">*</span></label>
+          <input type="text" name="username" class="form-control" required autocomplete="off">
+          <div class="form-text">Lowercase, no spaces</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Temporary Password <span class="text-danger">*</span></label>
+          <input type="password" name="password" class="form-control" required autocomplete="new-password" minlength="8">
+          <div class="form-text">Minimum 8 characters</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Role <span class="text-danger">*</span></label>
+          <select name="role" class="form-select" required>
+            {% for role_key, role_info in roles.items() %}
+            <option value="{{ role_key }}">{{ role_info.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Create User</button>
+          <a href="{{ url_for('users_list') }}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="col-12 col-md-7">
+    <div class="form-section">
+      <h5>Role Permissions</h5>
+      <table class="table table-sm" style="font-size:.83rem;">
+        <thead>
+          <tr><th>Role</th><th>Fill Forms</th><th>Approve Notes</th><th>Manage Users</th><th>Compliance</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge" style="background:#7c3aed;color:#fff;">Manager</span></td>
+            <td>✅</td><td>✅</td><td>✅</td><td>✅</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#1d4ed8;color:#fff;">Senior Carer</span></td>
+            <td>✅</td><td>✅</td><td>❌</td><td>✅</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#065f46;color:#fff;">Care Worker</span></td>
+            <td>✅</td><td>❌</td><td>❌</td><td>❌</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#78350f;color:#fff;">Read Only</span></td>
+            <td>❌</td><td>❌</td><td>❌</td><td>❌</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

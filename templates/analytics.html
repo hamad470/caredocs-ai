@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block page_title %}Data Science Analytics Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1.1rem 1.4rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.kpi .val{font-size:2rem;font-weight:800;line-height:1.1;}
+.kpi .lbl{font-size:.78rem;color:#64748b;margin-top:.2rem;}
+.kpi .sub{font-size:.7rem;color:#94a3b8;}
+.chart-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1.4rem;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:1rem;}
+.chart-card h6{font-size:.78rem;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.2rem;}
+.chart-sub{font-size:.72rem;color:#94a3b8;margin-bottom:1rem;}
+.section-lbl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin:1.5rem 0 .75rem;border-bottom:2px solid #e2e8f0;padding-bottom:.4rem;}
+.badge-ds{display:inline-block;background:#dbeafe;color:#1e40af;border-radius:4px;padding:1px 8px;font-size:.68rem;font-weight:700;vertical-align:middle;}
+.method-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;font-size:.8rem;}
+.method-box strong{color:#0f172a;} .method-box ul{margin:0;padding-left:1.2rem;color:#334155;line-height:1.75;}
+.stat-tbl td,.stat-tbl th{font-size:.8rem;padding:.4rem .6rem;}
+canvas{max-height:280px;}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="method-box">
+  <strong>Statistical methods used on this page</strong>
+  <ul>
+    <li><strong>Incident rate normalised per 100 resident-days</strong>, so months of differing length and occupancy are comparable</li>
+    <li><strong>Box plots</strong> (Q1–median–Q3) for wellbeing and fluid intake, showing distribution shape rather than means alone</li>
+    <li><strong>Ordinary least squares trend line</strong> on wellbeing — fitted slope = {{ wb_slope }}/month</li>
+    <li><strong>Predictive validity scatter</strong>: falls risk score against observed falls per resident</li>
+    <li><strong>Pearson correlation r = {{ fluid_wb_r }}</strong> for fluid intake against wellbeing, testing the clinical hypothesis</li>
+    <li><strong>95% confidence intervals</strong> on medication adherence, to convey the uncertainty around each point estimate</li>
+    <li><strong>Incident type × severity heatmap</strong> — a two-dimensional cross-tabulation</li>
+    <li><strong>Six-domain radar charts</strong> per resident, for multivariate wellbeing comparison</li>
+    <li><strong>Summary statistics</strong> (mean, standard deviation, median, min, max) across all wellbeing domains</li>
+    <li><strong>Data completeness: {{ completeness }}%</strong>, reported as a data quality measure</li>
+  </ul>
+</div>
+
+<!-- KPIs -->
+<div class="section-lbl">Key Performance Indicators</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-2"><div class="kpi"><div class="val" style="color:#1e3a8a;">{{ total_notes }}</div><div class="lbl">Care Notes</div><div class="sub">12 months</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="val" style="color:#dc2626;">{{ total_incidents }}</div><div class="lbl">Incidents</div><div class="sub">{{ serious_incidents }} serious</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="val" style="color:#065f46;">{{ overall_adherence }}%</div><div class="lbl">Med Adherence</div><div class="sub">{{ total_mar }} records</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="val" style="color:#7c3aed;">{{ avg_fluid }}ml</div><div class="lbl">Avg Fluid/day</div><div class="sub">ward average</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="val" style="color:#0369a1;">{{ avg_wellbeing }}<span style="font-size:.9rem;">/10</span></div><div class="lbl">Avg Wellbeing</div><div class="sub">6-domain score</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="val" style="color:#0f766e;">{{ completeness }}%</div><div class="lbl">Data Quality</div><div class="sub">completeness</div></div></div>
+</div>
+
+<!-- SECTION: Safety -->
+<div class="section-lbl">Safety &amp; Incident Analysis</div>
+<div class="row g-3">
+  <div class="col-md-8">
+    <div class="chart-card">
+      <h6>Incident Rate — Per 100 Resident-Days <span class="badge-ds">Normalised</span></h6>
+      <div class="chart-sub">Raw counts ÷ (5 residents × 30 days) × 100. Removes month-length bias for valid month-over-month comparison.</div>
+      <canvas id="incRateChart"></canvas>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="chart-card">
+      <h6>Incident Severity Breakdown</h6>
+      <div class="chart-sub">Minor · Moderate · Major · Critical across all {{ total_incidents }} incidents</div>
+      <canvas id="sevChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="chart-card">
+  <h6>Incident Type × Severity Cross-Tabulation <span class="badge-ds">Heatmap</span></h6>
+  <div class="chart-sub">Colour intensity encodes frequency. Identifies which incident types tend to escalate to Major/Critical severity.</div>
+  <div id="heatmapContainer" class="overflow-auto"></div>
+</div>
+
+<!-- SECTION: Wellbeing -->
+<div class="section-lbl">Wellbeing Analysis</div>
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="chart-card">
+      <h6>Wellbeing Distribution — Box Plots <span class="badge-ds">IQR + Spread</span></h6>
+      <div class="chart-sub">Bars = Q1–Q3 interquartile range. Hover for 5-number summary. Reveals variance hidden in mean-only charts.</div>
+      <canvas id="wbBoxChart"></canvas>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="chart-card">
+      <h6>Wellbeing Trend + OLS Regression <span class="badge-ds">Slope = {{ wb_slope }}/month</span></h6>
+      <div class="chart-sub">Ward average score over 12 months. Dashed red = ordinary least squares trend line.</div>
+      <canvas id="wbTrendChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="chart-card">
+  <h6>Wellbeing Radar — 6 Domains Per Resident <span class="badge-ds">Multi-Dimensional</span></h6>
+  <div class="chart-sub">Physical · Mental · Social · Personal Care · Nutrition · Pain Management. Average of 12 monthly assessments per resident.</div>
+  <div class="row" id="radarRow"></div>
+</div>
+
+<!-- SECTION: Predictive -->
+<div class="section-lbl">Predictive Analysis &amp; Correlations</div>
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="chart-card">
+      <h6>Falls Risk Score vs Actual Falls <span class="badge-ds">Predictive Validity</span></h6>
+      <div class="chart-sub">Tests whether the risk assessment tool predicts real outcomes. Good tool → positive diagonal. Each point = one resident.</div>
+      <canvas id="fallsScatterChart"></canvas>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="chart-card">
+      <h6>Fluid Intake vs Wellbeing Score <span class="badge-ds">Pearson r = {{ fluid_wb_r }}</span></h6>
+      <div class="chart-sub">Tests clinical hypothesis: higher hydration → higher wellbeing. Each point = one resident-month. Dashed = OLS line.</div>
+      <canvas id="fluidWbChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION: Medication + Fluid -->
+<div class="section-lbl">Medication Adherence &amp; Hydration</div>
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="chart-card">
+      <h6>Medication Adherence with 95% Confidence Intervals</h6>
+      <div class="chart-sub">Light bars = 95% CI range. Wider = smaller sample or more variance. All residents above 94%.</div>
+      <canvas id="adherenceChart"></canvas>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="chart-card">
+      <h6>Daily Fluid Intake — Box Plots per Resident</h6>
+      <div class="chart-sub">Red dashed = 1,500ml/day clinical minimum. Bar = Q1–Q3 IQR. Identifies residents below target.</div>
+      <canvas id="fluidBoxChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION: Mood + Stats table -->
+<div class="section-lbl">Mood &amp; Statistical Summary</div>
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="chart-card">
+      <h6>Observed Mood Distribution (n={{ total_notes }})</h6>
+      <div class="chart-sub">Frequency of each mood label across all care notes</div>
+      <canvas id="moodChart"></canvas>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="chart-card">
+      <h6>Statistical Summary — Wellbeing Domains</h6>
+      <div class="chart-sub">Descriptive statistics across all 60 monthly assessments (5 residents × 12 months). All scores /10.</div>
+      <table class="table table-sm table-striped stat-tbl">
+        <thead><tr><th>Domain</th><th>Mean</th><th>Std Dev</th><th>Median</th><th>Min</th><th>Max</th></tr></thead>
+        <tbody>
+          {% for label, s in stat_domains.items() %}
+          {% if s %}
+          <tr>
+            <td><strong>{{ label }}</strong></td>
+            <td>{{ s.mean }}</td><td>{{ s.std }}</td><td>{{ s.median }}</td>
+            <td>{{ s.min }}</td><td>{{ s.max }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="font-size:.72rem;color:#94a3b8;margin-top:.5rem;">
+        Source: wellbeing table — 60 assessments · Data completeness {{ completeness }}% · n={{ total_mar }} MAR records
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ── Data injected from Flask ────────────────────────────────────────────────
+const INC_MONTHS     = {{ j_inc_months|safe }};
+const INC_RATES      = {{ j_inc_rates|safe }};
+const SEV_TOTALS     = {{ j_sev_totals|safe }};
+const WB_RES_NAMES   = {{ j_wb_res_names|safe }};
+const WB_BOX         = {{ j_wb_box|safe }};
+const WB_MONTHS      = {{ j_wb_months|safe }};
+const WB_AVG         = {{ j_wb_avg|safe }};
+const WB_PHYS        = {{ j_wb_phys|safe }};
+const WB_MENT        = {{ j_wb_ment|safe }};
+const WB_TREND       = {{ j_wb_trend|safe }};
+const RADAR_NAMES    = {{ j_radar_names|safe }};
+const RADAR_DATA     = {{ j_radar_data|safe }};
+const RADAR_LABELS   = {{ j_radar_labels|safe }};
+const FALLS_SCATTER  = {{ j_falls_scatter|safe }};
+const FLUID_WB_PAIRS = {{ j_pairs|safe }};
+const FLUID_WB_REG   = {{ j_fluid_wb_reg|safe }};
+const ADHERENCE      = {{ j_adherence|safe }};
+const FLUID_NAMES    = {{ j_fluid_res_names|safe }};
+const FLUID_BOX      = {{ j_fluid_box|safe }};
+const MOOD_LABELS    = {{ j_mood_labels|safe }};
+const MOOD_COUNTS    = {{ j_mood_counts|safe }};
+const HM_ROWS        = {{ j_heatmap_rows|safe }};
+const HM_COLS        = {{ j_heatmap_cols|safe }};
+const HM_DATA        = {{ j_heatmap_data|safe }};
+
+const PAL = ["#2563eb","#7c3aed","#059669","#dc2626","#d97706","#0891b2","#be185d","#0f766e"];
+const pc  = i => PAL[i % PAL.length];
+const D2  = {responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{font:{size:11},boxWidth:12}}}};
+
+// 1. Normalised incident rate
+new Chart(document.getElementById('incRateChart'),{type:'bar',data:{
+  labels:INC_MONTHS,
+  datasets:[{label:'Rate per 100 resident-days',data:INC_RATES,
+    backgroundColor:'rgba(220,38,38,.6)',borderColor:'#dc2626',borderWidth:1,borderRadius:4}]
+},options:{...D2,plugins:{...D2.plugins,legend:{display:false}},
+  scales:{y:{beginAtZero:true,title:{display:true,text:'Per 100 resident-days'}}}}});
+
+// 2. Severity doughnut
+new Chart(document.getElementById('sevChart'),{type:'doughnut',data:{
+  labels:['Minor','Moderate','Major','Critical'],
+  datasets:[{data:SEV_TOTALS,backgroundColor:['#22c55e','#f59e0b','#ef4444','#7f1d1d']}]
+},options:{...D2,plugins:{legend:{position:'bottom',labels:{font:{size:10},boxWidth:10}}}}});
+
+// 3. Heatmap (DOM table)
+(function(){
+  const maxV = Math.max(...HM_DATA.flat()) || 1;
+  let t = '<table class="table table-sm" style="font-size:.8rem;"><thead><tr><th>Type \\ Severity</th>';
+  HM_COLS.forEach(c => t += `<th style="color:#64748b">${c}</th>`);
+  t += '</tr></thead><tbody>';
+  HM_ROWS.forEach((r,i) => {
+    t += `<tr><td><strong>${r}</strong></td>`;
+    HM_DATA[i].forEach(v => {
+      const a = (0.1 + (v/maxV)*0.85).toFixed(2);
+      const fg = v/maxV > 0.5 ? '#fff' : '#1e293b';
+      t += `<td style="background:rgba(37,99,235,${a});color:${fg};text-align:center;font-weight:${v?700:400}">${v||''}</td>`;
+    });
+    t += '</tr>';
+  });
+  t += '</tbody></table>';
+  document.getElementById('heatmapContainer').innerHTML = t;
+})();
+
+// 4. Wellbeing box plots
+new Chart(document.getElementById('wbBoxChart'),{type:'bar',data:{
+  labels:WB_RES_NAMES,
+  datasets:[
+    {label:'IQR (Q1–Q3)',data:WB_RES_NAMES.map(n=>[WB_BOX[n]?.q1,WB_BOX[n]?.q3]),
+      backgroundColor:WB_RES_NAMES.map((_,i)=>pc(i)+'55'),borderColor:WB_RES_NAMES.map((_,i)=>pc(i)),borderWidth:2},
+    {label:'Median',data:WB_RES_NAMES.map(n=>WB_BOX[n]?.median),
+      type:'scatter',pointStyle:'line',rotation:90,borderColor:WB_RES_NAMES.map((_,i)=>pc(i)),pointRadius:14,pointBorderWidth:3},
+  ]
+},options:{...D2,
+  plugins:{...D2.plugins,tooltip:{callbacks:{label(ctx){
+    const b=WB_BOX[WB_RES_NAMES[ctx.dataIndex]];
+    return b?[`Median: ${b.median}`,`Q1–Q3: ${b.q1}–${b.q3}`,`Min: ${b.min}  Max: ${b.max}`,`Mean±SD: ${b.mean}±${b.std}`]:[];
+  }}}},
+  scales:{y:{min:0,max:10,title:{display:true,text:'Overall Score /10'}}}}});
+
+// 5. Wellbeing trend + OLS
+new Chart(document.getElementById('wbTrendChart'),{type:'line',data:{
+  labels:WB_MONTHS,
+  datasets:[
+    {label:'Ward Avg Overall',data:WB_AVG,borderColor:'#2563eb',backgroundColor:'#2563eb22',tension:.35,pointRadius:4,fill:true},
+    {label:'Physical Health', data:WB_PHYS,borderColor:'#059669',tension:.35,pointRadius:3},
+    {label:'Mental Health',   data:WB_MENT,borderColor:'#7c3aed',tension:.35,pointRadius:3},
+    {label:'OLS Trend',data:WB_TREND,borderColor:'#dc2626',borderDash:[6,4],pointRadius:0,borderWidth:2,fill:false},
+  ]
+},options:{...D2,scales:{y:{min:0,max:10,title:{display:true,text:'Score /10'}}}}});
+
+// 6. Radar per resident
+(function(){
+  const row = document.getElementById('radarRow');
+  RADAR_NAMES.forEach((name,i) => {
+    const col = document.createElement('div');
+    col.className = 'col-md-4 col-6 mb-3';
+    col.innerHTML = `<canvas id="radar_${i}" style="max-height:220px;"></canvas>
+      <p style="font-size:.75rem;text-align:center;color:#475569;margin-top:.3rem;">${name}</p>`;
+    row.appendChild(col);
+    new Chart(document.getElementById(`radar_${i}`),{type:'radar',data:{
+      labels:RADAR_LABELS,
+      datasets:[{label:name,data:RADAR_DATA[i],borderColor:pc(i),backgroundColor:pc(i)+'33',pointRadius:3}]
+    },options:{responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false}},
+      scales:{r:{min:0,max:10,ticks:{stepSize:2,font:{size:9}},pointLabels:{font:{size:10}}}}}});
+  });
+})();
+
+// 7. Falls risk scatter
+new Chart(document.getElementById('fallsScatterChart'),{type:'scatter',data:{datasets:[
+  {label:'Residents',
+   data:FALLS_SCATTER.map(p=>({x:p.risk_score,y:p.actual_falls})),
+   backgroundColor:FALLS_SCATTER.map((_,i)=>pc(i)),pointRadius:12,pointHoverRadius:16}
+]},options:{...D2,
+  plugins:{...D2.plugins,tooltip:{callbacks:{label(ctx){
+    const p=FALLS_SCATTER[ctx.dataIndex];
+    return p?[`${p.name}`,`Risk score: ${p.risk_score}`,`Actual falls: ${p.actual_falls}`]:[];
+  }}}},
+  scales:{
+    x:{title:{display:true,text:'Falls Risk Assessment Score (max 20)'},min:0,max:22},
+    y:{title:{display:true,text:'Actual Falls Recorded'},beginAtZero:true,ticks:{stepSize:1}}
+  }}});
+
+// 8. Fluid–Wellbeing scatter
+(function(){
+  const ds = [{label:`Resident-months (r={{ fluid_wb_r }})`,
+    data:FLUID_WB_PAIRS.map(p=>({x:p.fluid,y:p.wb})),
+    backgroundColor:'rgba(37,99,235,.45)',pointRadius:5}];
+  if(FLUID_WB_REG.x0 !== undefined){
+    ds.push({label:'Regression',data:[{x:FLUID_WB_REG.x0,y:FLUID_WB_REG.y0},{x:FLUID_WB_REG.x1,y:FLUID_WB_REG.y1}],
+      type:'line',borderColor:'#dc2626',borderDash:[5,4],pointRadius:0,borderWidth:2,fill:false});
+  }
+  new Chart(document.getElementById('fluidWbChart'),{type:'scatter',data:{datasets:ds},
+    options:{...D2,scales:{
+      x:{title:{display:true,text:'Mean Monthly Fluid Intake (ml)'}},
+      y:{min:0,max:10,title:{display:true,text:'Wellbeing Score /10'}}
+    }}});
+})();
+
+// 9. Adherence + CI
+(function(){
+  const ciData = ADHERENCE.map(a=>[Math.max(85,a.pct-a.ci),Math.min(100,a.pct+a.ci)]);
+  new Chart(document.getElementById('adherenceChart'),{type:'bar',data:{
+    labels:ADHERENCE.map(a=>a.name),
+    datasets:[
+      {label:'95% CI',data:ciData,backgroundColor:'rgba(37,99,235,.2)',borderColor:'#93c5fd',borderWidth:1,borderRadius:4},
+      {label:'Adherence %',data:ADHERENCE.map(a=>a.pct),
+        backgroundColor:ADHERENCE.map((_,i)=>pc(i)+'bb'),borderColor:ADHERENCE.map((_,i)=>pc(i)),borderWidth:2,borderRadius:4},
+    ]
+  },options:{...D2,scales:{y:{min:90,max:100,title:{display:true,text:'% Administered'}}},
+    plugins:{...D2.plugins,tooltip:{callbacks:{label(ctx){
+      if(ctx.datasetIndex===1){const a=ADHERENCE[ctx.dataIndex];
+        return[`${a.pct}% (n=${a.n})`,`95% CI: [${(a.pct-a.ci).toFixed(1)}–${(a.pct+a.ci).toFixed(1)}%]`];}
+      return null;
+    }}}}}});
+})();
+
+// 10. Fluid box plots
+new Chart(document.getElementById('fluidBoxChart'),{type:'bar',data:{
+  labels:FLUID_NAMES,
+  datasets:[
+    {label:'IQR (Q1–Q3)',data:FLUID_NAMES.map(n=>[FLUID_BOX[n]?.q1,FLUID_BOX[n]?.q3]),
+      backgroundColor:FLUID_NAMES.map((_,i)=>pc(i)+'55'),borderColor:FLUID_NAMES.map((_,i)=>pc(i)),borderWidth:2},
+    {label:'1500ml Target',data:FLUID_NAMES.map(()=>1500),
+      type:'line',borderColor:'#dc2626',borderDash:[5,4],pointRadius:0,borderWidth:2,fill:false},
+  ]
+},options:{...D2,scales:{y:{title:{display:true,text:'ml/day'},suggestedMin:700}}}});
+
+// 11. Mood doughnut
+new Chart(document.getElementById('moodChart'),{type:'doughnut',data:{
+  labels:MOOD_LABELS,
+  datasets:[{data:MOOD_COUNTS,
+    backgroundColor:['#22c55e','#059669','#2563eb','#f59e0b','#dc2626','#7c3aed','#d97706','#0891b2','#be185d','#0f766e'],
+    borderWidth:2}]
+},options:{...D2,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:10}}}}});
+</script>
+{% endblock %}

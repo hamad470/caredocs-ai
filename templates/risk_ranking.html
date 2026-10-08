@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Daily Risk Ranking{% endblock %}
+{% block page_title %}Morning Risk Briefing{% endblock %}
+
+{% block extra_css %}
+<style>
+.risk-card {
+  background:#fff; border-radius:12px; border:1px solid #e2e8f0;
+  padding:1.2rem 1.4rem; margin-bottom:.8rem;
+  box-shadow:0 1px 3px rgba(0,0,0,.04);
+  border-left:5px solid #e2e8f0;
+  transition:box-shadow .15s;
+}
+.risk-card:hover { box-shadow:0 3px 10px rgba(0,0,0,.09); }
+.risk-card.red    { border-left-color:#dc2626; }
+.risk-card.amber  { border-left-color:#f59e0b; }
+.risk-card.green  { border-left-color:#10b981; }
+.score-bar-bg {
+  background:#f1f5f9; border-radius:6px; height:8px; margin-top:6px;
+}
+.score-bar-fill {
+  height:8px; border-radius:6px;
+  transition:width .4s ease;
+}
+.fill-red   { background:#dc2626; }
+.fill-amber { background:#f59e0b; }
+.fill-green { background:#10b981; }
+.reason-tag {
+  display:inline-block; background:#fef3c7; color:#92400e;
+  border-radius:20px; padding:2px 10px; font-size:.75rem; margin:2px;
+}
+.reason-tag.red-tag { background:#fee2e2; color:#991b1b; }
+.component-pill {
+  display:inline-flex; align-items:center; gap:4px;
+  background:#f8fafc; border:1px solid #e2e8f0;
+  border-radius:6px; padding:2px 8px; font-size:.72rem; color:#64748b;
+  margin:2px;
+}
+.cusum-alert {
+  background:#fff7ed; border:1px solid #fed7aa; border-radius:8px;
+  padding:.7rem 1rem; font-size:.83rem; color:#9a3412; margin-bottom:.5rem;
+}
+.ml-strip {
+  background:#f8fafc; border:1px dashed #cbd5e1;
+  border-radius:8px; padding:.5rem .7rem;
+}
+.ml-badge {
+  display:inline-flex; align-items:center;
+  border-radius:6px; padding:2px 9px;
+  font-size:.76rem; font-weight:600;
+}
+.ml-badge.ml-high     { background:#fee2e2; color:#991b1b; }
+.ml-badge.ml-moderate { background:#fef3c7; color:#92400e; }
+.ml-badge.ml-low      { background:#d1fae5; color:#065f46; }
+.model-bar {
+  background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px;
+  padding:.55rem .9rem; font-size:.78rem; color:#475569;
+  display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;
+  margin-bottom:1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="fw-bold text-dark mb-0">
+      <i class="bi bi-shield-exclamation me-2" style="color:#1e3a5f;"></i>
+      Daily Risk Ranking
+    </h4>
+    <div class="text-muted" style="font-size:.83rem;">{{ today }} — Residents ranked by composite clinical risk score</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('ml_evaluation') }}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-bar-chart-fill me-1"></i> ML Model Evaluation
+    </a>
+  </div>
+</div>
+
+<!-- Summary counts -->
+<div class="row g-3 mb-4">
+  {% set red_count   = ranking | selectattr('rag','eq','red')   | list | length %}
+  {% set amber_count = ranking | selectattr('rag','eq','amber') | list | length %}
+  {% set green_count = ranking | selectattr('rag','eq','green') | list | length %}
+  <div class="col-md-3">
+    <div class="stat-card text-center">
+      <div class="val" style="color:#dc2626;">{{ red_count }}</div>
+      <div class="lbl">High Risk — Review Now</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-card text-center">
+      <div class="val" style="color:#f59e0b;">{{ amber_count }}</div>
+      <div class="lbl">Elevated — Monitor Closely</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-card text-center">
+      <div class="val" style="color:#10b981;">{{ green_count }}</div>
+      <div class="lbl">Stable</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-card text-center">
+      <div class="val" style="color:#7c3aed;">{{ cusum_count }}</div>
+      <div class="lbl">MAR Adherence Alerts</div>
+    </div>
+  </div>
+</div>
+
+<!-- Methodology note -->
+<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.7rem 1rem;font-size:.8rem;color:#1e40af;margin-bottom:1.2rem;">
+  <i class="bi bi-info-circle-fill me-1"></i>
+  <strong>How this works:</strong> Each score is a weighted composite of fluid intake trend (25%), wellbeing trajectory (20%), medication adherence (20%), documentation gap (15%), incident history (10%), and formal risk assessment (10%). This is decision-support — always apply clinical judgement.
+  {% if model_status and model_status.available %}
+  Alongside it, the <strong>Model %</strong> is a separate supervised prediction served from the saved model file — the two methods are shown side by side rather than merged.
+  {% endif %}
+</div>
+
+<!-- Model provenance strip -->
+<div class="model-bar">
+  {% if model_status and model_status.available %}
+    <span><i class="bi bi-hdd me-1"></i><strong>Model loaded from disk:</strong> {{ model_status.filename }}</span>
+    <span class="text-muted">|</span>
+    <span>{{ model_status.model_type }}</span>
+    <span class="text-muted">|</span>
+    <span>trained {{ model_status.trained_at }}</span>
+    <span class="text-muted">|</span>
+    <span>{{ model_status.n_samples }} windows, {{ model_status.n_positive }} positive</span>
+    <span class="text-muted">|</span>
+    <span>alert threshold {{ model_status.threshold }}</span>
+    {% if model_status.stale %}
+      <span class="badge bg-warning text-dark">Stale — data changed since training</span>
+    {% else %}
+      <span class="badge bg-success-subtle text-success-emphasis">Current</span>
+    {% endif %}
+  {% else %}
+    <span><i class="bi bi-exclamation-triangle me-1 text-warning"></i>
+      No trained model file loaded — showing rule-based scores only.
+      Run <code>python train_model.py</code> to enable model predictions.</span>
+  {% endif %}
+</div>
+
+<!-- Ranked resident cards -->
+<div class="row">
+  <div class="col-lg-8">
+    <h6 class="fw-semibold mb-2 text-muted text-uppercase" style="font-size:.7rem;letter-spacing:1px;">Residents by Risk (Highest First)</h6>
+    {% for r in ranking %}
+    <div class="risk-card {{ r.rag }}">
+      <div class="d-flex align-items-start gap-3">
+        <div style="width:48px;height:48px;border-radius:10px;background:{% if r.rag=='red' %}#fee2e2{% elif r.rag=='amber' %}#fef3c7{% else %}#d1fae5{% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="bi bi-{% if r.rag=='red' %}exclamation-triangle-fill{% elif r.rag=='amber' %}exclamation-circle-fill{% else %}check-circle-fill{% endif %}" style="font-size:1.3rem;color:{% if r.rag=='red' %}#dc2626{% elif r.rag=='amber' %}#f59e0b{% else %}#10b981{% endif %};"></i>
+        </div>
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="fw-semibold fs-6">{{ r.name }}</span>
+            <span class="text-muted" style="font-size:.78rem;">Room {{ r.room }}</span>
+            <span class="rag-{{ r.rag }} ms-1">{{ r.rag|upper }}</span>
+          </div>
+          <div style="font-size:.78rem;color:#64748b;margin-bottom:.4rem;">{{ r.diagnosis }}</div>
+
+          <!-- Score bar -->
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <div class="score-bar-bg flex-grow-1">
+              <div class="score-bar-fill fill-{{ r.rag }}" style="width:{{ r.score_pct }}%;"></div>
+            </div>
+            <span style="font-size:.78rem;font-weight:600;color:{% if r.rag=='red' %}#dc2626{% elif r.rag=='amber' %}#f59e0b{% else %}#10b981{% endif %};">{{ r.score_pct }}%</span>
+          </div>
+
+          <!-- Supervised model prediction (served from saved artefact) -->
+          {% if r.ml_probability is not none %}
+          <div class="ml-strip mb-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="ml-badge ml-{{ r.ml_band }}">
+                <i class="bi bi-cpu me-1"></i>Model: {{ r.ml_probability }}%
+              </span>
+              <span style="font-size:.72rem;color:#64748b;">
+                relative fall-risk score for the next 7 days — use for
+                <em>ranking</em>, not as a literal probability (the classifier is
+                class-weighted for recall, so it over-states absolute likelihood)
+                {% if r.ml_flag %}<strong class="text-danger">— above alert threshold</strong>{% endif %}
+              </span>
+            </div>
+            {% if r.ml_drivers %}
+            <details style="font-size:.74rem;margin-top:.35rem;">
+              <summary style="color:#64748b;cursor:pointer;">Why the model says this</summary>
+              <div class="mt-1">
+                {% for d in r.ml_drivers %}
+                <span class="component-pill" title="This resident: {{ d.value }} · typical: {{ d.typical }}">
+                  {% if d.effect_pct > 0 %}
+                    <i class="bi bi-arrow-up-short text-danger"></i>
+                  {% else %}
+                    <i class="bi bi-arrow-down-short text-success"></i>
+                  {% endif %}
+                  {{ d.feature }} ({{ d.value }}) {{ '%+.1f'|format(d.effect_pct) }}pp
+                </span>
+                {% endfor %}
+              </div>
+            </details>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          <!-- Reasons -->
+          <div class="mb-2">
+            {% for reason in r.reasons %}
+            <span class="reason-tag {% if r.rag=='red' %}red-tag{% endif %}">
+              <i class="bi bi-arrow-right-short"></i> {{ reason }}
+            </span>
+            {% endfor %}
+          </div>
+
+          <!-- Component breakdown (collapsed) -->
+          <details style="font-size:.76rem;">
+            <summary style="color:#64748b;cursor:pointer;">Component scores</summary>
+            <div class="mt-1">
+              {% for comp, val in r.component_scores.items() %}
+              <span class="component-pill">{{ comp.replace('_',' ').title() }}: {{ (val * 100)|round(0)|int }}%</span>
+              {% endfor %}
+            </div>
+          </details>
+        </div>
+        <a href="{{ url_for('resident_detail', resident_id=r.resident_id) }}" class="btn btn-sm btn-outline-secondary flex-shrink-0">
+          View Profile
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- CUSUM sidebar -->
+  <div class="col-lg-4">
+    <h6 class="fw-semibold mb-2 text-muted text-uppercase" style="font-size:.7rem;letter-spacing:1px;">MAR Adherence Alerts (CUSUM)</h6>
+    {% if cusum_count > 0 %}
+      {% for rid, alerts in cusum_alerts.items() %}
+        {% for alert in alerts %}
+        <div class="cusum-alert">
+          <i class="bi bi-capsule-pill me-1"></i>
+          <strong>{{ alert.resident }}</strong><br>
+          <span>{{ alert.date }}: adherence {{ alert.adherence }}%</span><br>
+          <span style="font-size:.72rem;color:#a16207;">CUSUM={{ alert.cusum }} (threshold=4.0)</span>
+        </div>
+        {% endfor %}
+      {% endfor %}
+    {% else %}
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.8rem;font-size:.83rem;color:#15803d;">
+      <i class="bi bi-check-circle-fill me-1"></i>
+      No medication adherence anomalies detected today.
+    </div>
+    {% endif %}
+
+    <div class="mt-3" style="background:#f8fafc;border-radius:8px;padding:.8rem;font-size:.78rem;color:#64748b;">
+      <strong>What is CUSUM?</strong><br>
+      Cumulative Sum control charts detect when a resident's medication adherence drops significantly below their own personal baseline — more sensitive than a fixed threshold.
+    </div>
+  </div>
+</div>
+{% endblock %}

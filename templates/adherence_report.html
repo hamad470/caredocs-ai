@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% block title %}Medication Adherence Report{% endblock %}
+{% block page_title %}Medication Adherence Report{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi { background:#fff; border-radius:12px; border:1px solid #e2e8f0;
+       padding:1.1rem 1.4rem; text-align:center; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.kpi .val { font-size:2rem; font-weight:800; line-height:1.1; }
+.kpi .lbl { font-size:.78rem; color:#64748b; margin-top:.25rem; }
+
+.res-card { background:#fff; border-radius:12px; border:1px solid #e2e8f0;
+            box-shadow:0 1px 4px rgba(0,0,0,.05); margin-bottom:1.5rem; overflow:hidden; }
+.res-card-header { padding:.9rem 1.25rem; display:flex; align-items:center;
+                   gap:.75rem; border-bottom:1px solid #f1f5f9; }
+.res-card-body   { padding:1.25rem; }
+
+.risk-badge-high   { background:#fee2e2; color:#991b1b; border-radius:20px;
+                     padding:2px 12px; font-size:.75rem; font-weight:700; }
+.risk-badge-medium { background:#fef3c7; color:#78350f; border-radius:20px;
+                     padding:2px 12px; font-size:.75rem; font-weight:700; }
+.risk-badge-low    { background:#dcfce7; color:#14532d; border-radius:20px;
+                     padding:2px 12px; font-size:.75rem; font-weight:700; }
+
+.alert-pill { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5;
+              border-radius:8px; padding:.35rem .75rem; font-size:.8rem;
+              margin:.2rem; display:inline-block; }
+.alert-pill i { margin-right:4px; }
+
+.stat-mini { background:#f8fafc; border-radius:8px; padding:.5rem .9rem;
+             font-size:.78rem; color:#475569; display:inline-block; margin:.2rem; }
+.stat-mini strong { color:#1e3a5f; }
+
+.med-table th { font-size:.75rem; background:#f8fafc; }
+.med-table td { font-size:.8rem; vertical-align:middle; }
+
+.cusum-explain { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px;
+                 padding:.75rem 1rem; font-size:.78rem; color:#1e40af; margin-top:.75rem; }
+
+canvas { max-height:200px; }
+
+.section-lbl { font-size:.7rem; font-weight:700; text-transform:uppercase;
+               letter-spacing:1px; color:#64748b; margin:1.5rem 0 .75rem;
+               border-bottom:2px solid #e2e8f0; padding-bottom:.4rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header row -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="fw-bold text-dark mb-0">
+      <i class="bi bi-capsule-pill me-2" style="color:#1e3a5f;"></i>
+      Medication Adherence Report
+    </h4>
+    <div class="text-muted" style="font-size:.83rem;">
+      Generated {{ today }} — CUSUM statistical process control analysis across all residents
+    </div>
+  </div>
+  <a href="{{ url_for('risk_ranking') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i> Back to Risk Ranking
+  </a>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi">
+      <div class="val" style="color:#1e3a5f;">{{ avg_adherence }}%</div>
+      <div class="lbl">Ward Average Adherence</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi">
+      <div class="val" style="color:{% if total_alerts > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+        {{ total_alerts }}
+      </div>
+      <div class="lbl">CUSUM Alerts Total</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi">
+      <div class="val" style="color:{% if high_count > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+        {{ high_count }}
+      </div>
+      <div class="lbl">Residents Flagged High Risk</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi">
+      <div class="val" style="color:#7c3aed;">{{ report | length }}</div>
+      <div class="lbl">Residents Monitored</div>
+    </div>
+  </div>
+</div>
+
+<!-- What is CUSUM info box -->
+<div class="cusum-explain mb-4">
+  <strong><i class="bi bi-info-circle-fill me-1"></i> How CUSUM works:</strong>
+  Each resident's first 7 days of MAR records set a personal baseline (mean μ and standard deviation σ).
+  The CUSUM statistic accumulates downward deviations: <code>C = max(0, C + (μ − xᵢ)/σ − k)</code>
+  where k = 0.5 (allowance). When C reaches h = 4.0, an alert fires and C resets.
+  This detects <strong>sustained drops</strong> below an individual's own baseline —
+  more sensitive than a fixed percentage threshold.
+</div>
+
+<!-- Per-resident sections -->
+{% for res in report %}
+<div class="res-card">
+
+  <!-- Card header -->
+  <div class="res-card-header">
+    <div style="width:42px;height:42px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+      background:{% if res.risk_level=='high' %}#fee2e2{% elif res.risk_level=='medium' %}#fef3c7{% else %}#dcfce7{% endif %};">
+      <i class="bi bi-{% if res.risk_level=='high' %}exclamation-triangle-fill{% elif res.risk_level=='medium' %}exclamation-circle-fill{% else %}check-circle-fill{% endif %}"
+         style="font-size:1.2rem;color:{% if res.risk_level=='high' %}#dc2626{% elif res.risk_level=='medium' %}#f59e0b{% else %}#16a34a{% endif %};"></i>
+    </div>
+    <div class="flex-grow-1">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="fw-bold fs-6">{{ res.name }}</span>
+        <span class="risk-badge-{{ res.risk_level }}">
+          {{ res.risk_level | upper }}
+        </span>
+        {% if res.alerts %}
+        <span class="badge bg-danger">{{ res.alerts | length }} alert{{ 's' if res.alerts | length > 1 else '' }}</span>
+        {% endif %}
+      </div>
+      <div class="mt-1" style="font-size:.8rem;color:#64748b;">
+        <span class="stat-mini">Overall adherence: <strong>{{ res.overall_adherence }}%</strong></span>
+        <span class="stat-mini">Baseline: <strong>{{ res.baseline_mean }}% ± {{ res.baseline_sd }}%</strong></span>
+        <span class="stat-mini">Doses given: <strong>{{ res.total_given }} / {{ res.total_scheduled }}</strong></span>
+        <span class="stat-mini">Days monitored: <strong>{{ res.dates | length }}</strong></span>
+      </div>
+    </div>
+    <a href="{{ url_for('resident_detail', resident_id=res.resident_id) }}"
+       class="btn btn-sm btn-outline-primary flex-shrink-0">
+      View Profile
+    </a>
+  </div>
+
+  <div class="res-card-body">
+
+    <!-- Alert pills -->
+    {% if res.alerts %}
+    <div class="mb-3">
+      <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#dc2626;margin-bottom:.4rem;">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i> CUSUM Alerts Detected
+      </div>
+      {% for alert in res.alerts %}
+      <span class="alert-pill">
+        <i class="bi bi-calendar-x"></i>
+        {{ alert.date }} — {{ alert.adherence }}% adherence
+        ({{ alert.drop_from_baseline }}% below baseline, CUSUM={{ alert.cusum }})
+      </span>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="mb-3" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;
+         padding:.5rem .9rem;font-size:.8rem;color:#15803d;">
+      <i class="bi bi-check-circle-fill me-1"></i>
+      No CUSUM alerts — adherence has remained within normal range throughout the monitoring period.
+    </div>
+    {% endif %}
+
+    <!-- Charts row -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-7">
+        <div style="background:#f8fafc;border-radius:8px;padding:.75rem;">
+          <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;
+               letter-spacing:.5px;color:#1e3a5f;margin-bottom:.4rem;">
+            Daily Adherence % — with baseline &amp; alert markers
+          </div>
+          <canvas id="adh_{{ res.resident_id }}"></canvas>
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div style="background:#f8fafc;border-radius:8px;padding:.75rem;">
+          <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;
+               letter-spacing:.5px;color:#1e3a5f;margin-bottom:.4rem;">
+            CUSUM Statistic — threshold = {{ res.cusum_threshold }}
+          </div>
+          <canvas id="cusum_{{ res.resident_id }}"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-medication table -->
+    <details {% if res.risk_level == 'high' %}open{% endif %}>
+      <summary style="font-size:.8rem;font-weight:600;color:#475569;cursor:pointer;margin-bottom:.5rem;">
+        Per-Medication Breakdown ({{ res.medications | length }} active drugs)
+      </summary>
+      {% if res.medications %}
+      <div class="table-responsive">
+        <table class="table table-sm table-striped med-table mb-0">
+          <thead>
+            <tr>
+              <th>Medication</th>
+              <th>Dose</th>
+              <th>Frequency</th>
+              <th class="text-center">Scheduled</th>
+              <th class="text-center">Given</th>
+              <th class="text-center">Adherence</th>
+              <th class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for med in res.medications %}
+            <tr class="{% if med.flag == 'danger' %}table-danger{% elif med.flag == 'warning' %}table-warning{% endif %}">
+              <td><strong>{{ med.name }}</strong></td>
+              <td>{{ med.dose }}</td>
+              <td>{{ med.frequency }}</td>
+              <td class="text-center">{{ med.scheduled }}</td>
+              <td class="text-center">{{ med.given }}</td>
+              <td class="text-center fw-bold
+                {% if med.flag == 'danger' %}text-danger
+                {% elif med.flag == 'warning' %}text-warning
+                {% else %}text-success{% endif %}">
+                {{ med.adherence }}%
+              </td>
+              <td class="text-center">
+                {% if med.flag == 'danger' %}
+                  <span class="badge bg-danger">Low</span>
+                {% elif med.flag == 'warning' %}
+                  <span class="badge bg-warning text-dark">Watch</span>
+                {% else %}
+                  <span class="badge bg-success">OK</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted small">No active medications on record.</p>
+      {% endif %}
+    </details>
+
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const REPORT = {{ j_report | safe }};
+
+const PAL = ["#2563eb","#7c3aed","#059669","#dc2626","#d97706","#0891b2"];
+const pc  = i => PAL[i % PAL.length];
+
+REPORT.forEach((res, idx) => {
+  const color   = pc(idx);
+  const dates   = res.dates;
+  const rates   = res.daily_rates;
+  const cusum   = res.cusum_series;
+  const alerts  = res.alert_indices;
+  const h       = res.cusum_threshold;
+  const base    = res.baseline_mean;
+
+  // ── Adherence chart ──────────────────────────────────────────────────────
+  const adhCtx = document.getElementById('adh_' + res.resident_id);
+  if (adhCtx) {
+    // Point colours: red at alert indices
+    const ptColors = rates.map((_, i) =>
+      alerts.includes(i) ? '#dc2626' : color
+    );
+    const ptRadii = rates.map((_, i) =>
+      alerts.includes(i) ? 6 : 2
+    );
+
+    new Chart(adhCtx, {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets: [
+          {
+            label: 'Daily Adherence %',
+            data: rates,
+            borderColor: color,
+            backgroundColor: color + '18',
+            fill: true,
+            tension: 0.25,
+            pointRadius: ptRadii,
+            pointBackgroundColor: ptColors,
+            pointBorderColor: ptColors,
+            borderWidth: 1.5,
+          },
+          {
+            label: 'Personal Baseline (' + base + '%)',
+            data: Array(dates.length).fill(base),
+            borderColor: '#94a3b8',
+            borderDash: [5, 3],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+          },
+          {
+            label: 'Clinical Min (85%)',
+            data: Array(dates.length).fill(85),
+            borderColor: '#f59e0b',
+            borderDash: [3, 3],
+            borderWidth: 1,
+            pointRadius: 0,
+            fill: false,
+          },
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { labels: { font: { size: 10 }, boxWidth: 10 } },
+          tooltip: {
+            callbacks: {
+              afterLabel(ctx) {
+                if (alerts.includes(ctx.dataIndex)) return '⚠ CUSUM ALERT';
+                return '';
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { maxTicksLimit: 8, font: { size: 9 } } },
+          y: { min: 60, max: 102, title: { display: true, text: 'Adherence %', font: { size: 10 } } }
+        }
+      }
+    });
+  }
+
+  // ── CUSUM chart ───────────────────────────────────────────────────────────
+  const cusumCtx = document.getElementById('cusum_' + res.resident_id);
+  if (cusumCtx) {
+    const cusumColors = cusum.map((v, i) =>
+      v >= h ? '#dc2626' : color
+    );
+
+    new Chart(cusumCtx, {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets: [
+          {
+            label: 'CUSUM Statistic',
+            data: cusum,
+            borderColor: color,
+            backgroundColor: cusum.map(v => v >= h ? '#fca5a540' : color + '18'),
+            fill: true,
+            tension: 0.1,
+            pointRadius: cusum.map(v => v >= h ? 5 : 1),
+            pointBackgroundColor: cusumColors,
+            borderWidth: 1.5,
+          },
+          {
+            label: 'Alert Threshold (h = ' + h + ')',
+            data: Array(dates.length).fill(h),
+            borderColor: '#dc2626',
+            borderDash: [6, 3],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { labels: { font: { size: 10 }, boxWidth: 10 } },
+        },
+        scales: {
+          x: { ticks: { maxTicksLimit: 6, font: { size: 9 } } },
+          y: { min: 0, title: { display: true, text: 'CUSUM value', font: { size: 10 } } }
+        }
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

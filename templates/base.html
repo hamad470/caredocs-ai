@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}CareHome Docs{% endblock %} — Sunrise Care Home</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  :root {
+    --brand:        #1e3a5f;
+    --brand-light:  #e8f0fe;
+    --brand-accent: #2563eb;
+    --sidebar-w:    240px;
+  }
+  body { background:#f8fafc; font-family:'Segoe UI',system-ui,sans-serif; }
+  /* Sidebar */
+  #sidebar {
+    width:var(--sidebar-w); height:100vh; background:var(--brand);
+    position:fixed; top:0; left:0; z-index:1000; display:flex; flex-direction:column;
+    transition:transform .25s; overflow:hidden;
+  }
+  #sidebar .brand {
+    padding:1.2rem 1rem; border-bottom:1px solid rgba(255,255,255,.12);
+    font-size:1.05rem; font-weight:700; color:#fff; letter-spacing:.3px;
+  }
+  #sidebar .brand small { display:block; font-size:.7rem; font-weight:400;
+    color:rgba(255,255,255,.55); margin-top:2px; }
+  #sidebar .nav-link {
+    color:rgba(255,255,255,.75); padding:.55rem 1rem; border-radius:6px;
+    margin:1px 8px; font-size:.875rem; display:flex; align-items:center; gap:.5rem;
+    transition:background .15s, color .15s;
+  }
+  #sidebar .nav-link:hover, #sidebar .nav-link.active {
+    background:rgba(255,255,255,.12); color:#fff;
+  }
+  #sidebar .nav-section {
+    font-size:.65rem; text-transform:uppercase; letter-spacing:1px;
+    color:rgba(255,255,255,.35); padding:.6rem 1rem .2rem;
+  }
+  #sidebar .nav-scroll {
+    flex:1; overflow-y:auto; overflow-x:hidden;
+  }
+  #sidebar .nav-scroll::-webkit-scrollbar { width:4px; }
+  #sidebar .nav-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.2); border-radius:2px; }
+  #sidebar .user-panel {
+    flex-shrink:0; padding:1rem; border-top:1px solid rgba(255,255,255,.12);
+    font-size:.8rem; color:rgba(255,255,255,.7);
+  }
+  #sidebar .role-badge {
+    display:inline-block; padding:1px 8px; border-radius:20px;
+    font-size:.65rem; font-weight:600; background:rgba(255,255,255,.15); color:#fff;
+    margin-top:3px;
+  }
+  /* Main */
+  #main { margin-left:var(--sidebar-w); min-height:100vh; }
+  .topbar {
+    background:#fff; border-bottom:1px solid #e2e8f0;
+    padding:.6rem 1.5rem; display:flex; align-items:center;
+    justify-content:space-between; position:sticky; top:0; z-index:900;
+  }
+  .topbar h1 { font-size:1.1rem; font-weight:600; color:var(--brand); margin:0; }
+  .page-body { padding:1.5rem; }
+  /* Cards */
+  .stat-card {
+    background:#fff; border-radius:10px; padding:1.2rem 1.5rem;
+    border:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(0,0,0,.05);
+  }
+  .stat-card .val { font-size:2rem; font-weight:700; color:var(--brand); }
+  .stat-card .lbl { font-size:.8rem; color:#64748b; }
+  /* RAG badges */
+  .rag-green  { background:#dcfce7; color:#15803d; border-radius:20px;
+                padding:2px 10px; font-size:.75rem; font-weight:600; }
+  .rag-amber  { background:#fef9c3; color:#a16207; border-radius:20px;
+                padding:2px 10px; font-size:.75rem; font-weight:600; }
+  .rag-red    { background:#fee2e2; color:#b91c1c; border-radius:20px;
+                padding:2px 10px; font-size:.75rem; font-weight:600; }
+  /* AI badge */
+  .ai-badge {
+    display:inline-flex; align-items:center; gap:4px; font-size:.72rem;
+    background:linear-gradient(135deg,#7c3aed,#2563eb);
+    color:#fff; border-radius:20px; padding:2px 10px; font-weight:600;
+  }
+  /* Status badges */
+  .badge-draft    { background:#e2e8f0; color:#475569; }
+  .badge-pending  { background:#fef3c7; color:#92400e; }
+  .badge-approved { background:#d1fae5; color:#065f46; }
+  .badge-open     { background:#fee2e2; color:#991b1b; }
+  .badge-closed   { background:#d1fae5; color:#065f46; }
+  /* Form sections */
+  .form-section {
+    background:#fff; border-radius:10px; border:1px solid #e2e8f0;
+    padding:1.4rem; margin-bottom:1rem;
+  }
+  .form-section h5 {
+    color:var(--brand); font-weight:600; font-size:.95rem;
+    border-bottom:2px solid var(--brand-light); padding-bottom:.4rem; margin-bottom:1rem;
+  }
+  .ai-panel {
+    background:linear-gradient(135deg,#ede9fe,#e0e7ff);
+    border:1px solid #c4b5fd; border-radius:10px; padding:1rem;
+    margin-bottom:1rem;
+  }
+  /* Narrative box */
+  .narrative-box {
+    background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;
+    padding:1rem; font-style:italic; color:#334155; font-size:.9rem; line-height:1.6;
+  }
+  /* Responsive */
+  @media(max-width:768px){
+    #sidebar { transform:translateX(-100%); }
+    #sidebar.open { transform:translateX(0); }
+    #main { margin-left:0; }
+  }
+</style>
+{% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav id="sidebar">
+  <div class="brand">
+    <i class="bi bi-house-heart-fill"></i> CareHome Docs
+    <small>Sunrise Care Home</small>
+  </div>
+  <div class="nav-scroll">
+  <div class="mt-2">
+    <div class="nav-section">Records</div>
+    <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint=='dashboard' %}active{% endif %}">
+      <i class="bi bi-speedometer2"></i> Dashboard
+    </a>
+    <a href="{{ url_for('residents_list') }}" class="nav-link {% if 'resident' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-people-fill"></i> Residents
+    </a>
+    <a href="{{ url_for('incidents_list') }}" class="nav-link {% if request.endpoint=='incidents_list' %}active{% endif %}">
+      <i class="bi bi-clipboard2-pulse-fill"></i> Incidents
+    </a>
+    <a href="{{ url_for('handovers_list') }}" class="nav-link {% if request.endpoint=='handovers_list' %}active{% endif %}">
+      <i class="bi bi-collection-fill"></i> Handovers
+    </a>
+    <a href="{{ url_for('medications_list') }}" class="nav-link {% if 'medic' in (request.endpoint or '') or 'mar' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-capsule-pill"></i> Medications / MAR
+    </a>
+
+    <div class="nav-section mt-2">Capture</div>
+    <a href="{{ url_for('care_note_new') }}" class="nav-link {% if request.endpoint=='care_note_new' %}active{% endif %}">
+      <i class="bi bi-journal-text"></i> New Care Note
+    </a>
+    <a href="{{ url_for('incident_new') }}" class="nav-link {% if request.endpoint=='incident_new' %}active{% endif %}">
+      <i class="bi bi-exclamation-triangle-fill"></i> Report Incident
+    </a>
+    <a href="{{ url_for('handover_new') }}" class="nav-link {% if request.endpoint=='handover_new' %}active{% endif %}">
+      <i class="bi bi-arrow-left-right"></i> Handover
+    </a>
+    <a href="{{ url_for('wellbeing_new') }}" class="nav-link {% if request.endpoint=='wellbeing_new' %}active{% endif %}">
+      <i class="bi bi-heart-pulse-fill"></i> Wellbeing
+    </a>
+    <a href="{{ url_for('risk_new') }}" class="nav-link {% if request.endpoint=='risk_new' %}active{% endif %}">
+      <i class="bi bi-shield-exclamation"></i> Risk Assessment
+    </a>
+    <a href="{{ url_for('care_plan_new') }}" class="nav-link {% if 'care_plan' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-file-medical-fill"></i> Care Plan
+    </a>
+
+    <div class="nav-section mt-2">Component 1 — Prediction</div>
+    <a href="{{ url_for('risk_ranking') }}" class="nav-link {% if request.endpoint=='risk_ranking' %}active{% endif %}">
+      <i class="bi bi-list-ol"></i> Fall Risk Ranking
+    </a>
+    <a href="{{ url_for('ml_evaluation') }}" class="nav-link {% if request.endpoint=='ml_evaluation' %}active{% endif %}">
+      <i class="bi bi-cpu-fill"></i> Model Evaluation
+    </a>
+
+    <div class="nav-section mt-2">Component 2 — Retrieval</div>
+    <a href="{{ url_for('chat_page') }}" class="nav-link {% if 'chat' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-chat-dots-fill"></i> Ask the Records
+    </a>
+    <a href="{{ url_for('knowledge_base') }}" class="nav-link {% if 'knowledge' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-database-fill-gear"></i> Knowledge Base
+    </a>
+    <a href="{{ url_for('rag_evaluation') }}" class="nav-link {% if 'rag_eval' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-bar-chart-fill"></i> Retrieval Evaluation
+    </a>
+
+    <div class="nav-section mt-2">Data</div>
+    <a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint=='analytics' %}active{% endif %}">
+      <i class="bi bi-graph-up-arrow"></i> Cohort Analytics
+    </a>
+
+    {% if session.get('role') == 'manager' %}
+    <div class="nav-section mt-2">Admin</div>
+    <a href="{{ url_for('users_list') }}" class="nav-link {% if 'user' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-person-gear"></i> User Management
+    </a>
+    <a href="{{ url_for('ai_settings') }}" class="nav-link {% if request.endpoint=='ai_settings' %}active{% endif %}">
+      <i class="bi bi-robot"></i> AI Settings
+    </a>
+    {% endif %}
+  </div>
+  </div><!-- /nav-scroll -->
+
+  <div class="user-panel">
+    <div><strong>{{ session.get('full_name','') }}</strong></div>
+    <div class="role-badge">{{ session.get('role','').replace('_',' ').title() }}</div>
+    <div class="mt-2">
+      <a href="{{ url_for('logout') }}" class="text-white-50 text-decoration-none" style="font-size:.75rem;">
+        <i class="bi bi-box-arrow-left"></i> Sign out
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- Main content -->
+<div id="main">
+  <div class="topbar">
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm d-md-none" onclick="document.getElementById('sidebar').classList.toggle('open')">
+        <i class="bi bi-list fs-5"></i>
+      </button>
+      <h1>{% block page_title %}CareHome Docs{% endblock %}</h1>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-muted" style="font-size:.8rem;">
+        <i class="bi bi-calendar3"></i> {{ current_date }}
+      </span>
+    </div>
+  </div>
+
+  <div class="page-body">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for cat, msg in messages %}
+      <div class="alert alert-{{ 'danger' if cat=='error' else ('success' if cat=='success' else 'info') }} alert-dismissible fade show" role="alert">
+        {{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+{% block extra_js %}{% endblock %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

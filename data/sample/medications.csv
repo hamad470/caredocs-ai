@@ -1,0 +1,24 @@
+id,resident_id,medication_name,generic_name,dose,route,frequency,indication,prescribing_gp,start_date,review_date,is_controlled,is_prn,prn_instructions,admin_notes,side_effects,status,stopped_reason,created
+1,RES001,Lansoprazole,,30mg,Oral,Once daily,Gastro-protection,Dr. B. Osei,2025-05-16,2027-01-19,0,0,,Administer with food.,,active,,2026-10-08 07:34:04
+2,RES001,Donepezil,,10mg,Oral,Once daily,Alzheimer's disease,Dr. B. Osei,2023-06-09,2027-01-02,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+3,RES001,Levodopa/Carbidopa,,100/25mg,Oral,Three times daily,Parkinson's disease,Dr. B. Osei,2025-04-11,2026-09-27,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+4,RES001,Macrogol,,1 sachet,Oral,Twice daily,Constipation,Dr. B. Osei,2025-05-16,2026-09-21,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+5,RES002,Furosemide,,40mg,Oral,Once daily,Oedema,Dr. B. Osei,2025-01-08,2026-12-24,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+6,RES002,Macrogol,,1 sachet,Oral,Twice daily,Constipation,Dr. B. Osei,2024-05-17,2027-02-14,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+7,RES002,Alendronic acid,,70mg,Oral,Once weekly,Osteoporosis,Dr. B. Osei,2024-07-08,2026-09-15,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+8,RES003,Levothyroxine,,75mcg,Oral,Once daily,Hypothyroidism,Dr. C. Lindqvist,2024-10-10,2026-11-19,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+9,RES003,Levodopa/Carbidopa,,100/25mg,Oral,Three times daily,Parkinson's disease,Dr. C. Lindqvist,2024-04-08,2027-02-07,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+10,RES003,Rivaroxaban,,20mg,Oral,Once daily,Atrial fibrillation,Dr. C. Lindqvist,2024-06-26,2027-02-03,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+11,RES003,Paracetamol,,1g,Oral,Four times daily,Pain,Dr. C. Lindqvist,2025-02-16,2026-12-30,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+12,RES003,Alendronic acid,,70mg,Oral,Once weekly,Osteoporosis,Dr. C. Lindqvist,2024-03-09,2026-10-01,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+13,RES003,Furosemide,,40mg,Oral,Once daily,Oedema,Dr. C. Lindqvist,2023-04-16,2026-12-24,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+14,RES003,Macrogol,,1 sachet,Oral,Twice daily,Constipation,Dr. C. Lindqvist,2024-07-28,2026-09-25,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+15,RES004,Donepezil,,10mg,Oral,Once daily,Alzheimer's disease,Dr. A. Khan,2024-12-01,2026-12-13,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+16,RES004,Metformin,,500mg,Oral,Twice daily,Type 2 diabetes,Dr. A. Khan,2024-07-20,2026-12-02,0,0,,Administer with food.,,active,,2026-10-08 07:34:04
+17,RES004,Furosemide,,40mg,Oral,Once daily,Oedema,Dr. A. Khan,2025-04-08,2026-12-21,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+18,RES004,Macrogol,,1 sachet,Oral,Twice daily,Constipation,Dr. A. Khan,2024-02-21,2026-09-20,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+19,RES005,Macrogol,,1 sachet,Oral,Twice daily,Constipation,Dr. B. Osei,2025-07-19,2026-11-28,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+20,RES005,Rivaroxaban,,20mg,Oral,Once daily,Atrial fibrillation,Dr. B. Osei,2023-07-27,2026-09-24,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+21,RES005,Atorvastatin,,20mg,Oral,Once daily,Hyperlipidaemia,Dr. B. Osei,2025-01-08,2026-09-07,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04
+22,RES005,Metformin,,500mg,Oral,Twice daily,Type 2 diabetes,Dr. B. Osei,2024-04-09,2026-12-16,0,0,,Administer with food.,,active,,2026-10-08 07:34:04
+23,RES005,Levothyroxine,,75mcg,Oral,Once daily,Hypothyroidism,Dr. B. Osei,2024-08-16,2026-10-20,0,0,,Crush only if the resident is on a modified texture diet.,,active,,2026-10-08 07:34:04

@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Duty Dashboard{% endblock %}
+{% block page_title %}<i class="bi bi-shield-check text-success"></i> Duty Dashboard — {{ shift }} Shift{% endblock %}
+
+{% block extra_css %}
+<style>
+.alert-critical { background:#fef2f2; border-left:4px solid #dc2626 !important; }
+.alert-high     { background:#fff7ed; border-left:4px solid #f97316 !important; }
+.alert-caution  { background:#fefce8; border-left:4px solid #eab308 !important; }
+.alert-chip-critical { background:#fee2e2; color:#b91c1c; border-radius:20px; padding:2px 10px; font-size:.72rem; font-weight:700; }
+.alert-chip-high     { background:#ffedd5; color:#c2410c; border-radius:20px; padding:2px 10px; font-size:.72rem; font-weight:700; }
+.alert-chip-caution  { background:#fef9c3; color:#854d0e; border-radius:20px; padding:2px 10px; font-size:.72rem; font-weight:700; }
+.resident-card { border:1px solid #e2e8f0; border-radius:10px; background:#fff; margin-bottom:1rem; overflow:hidden; }
+.resident-card-header { padding:.8rem 1.1rem; display:flex; justify-content:space-between; align-items:center; }
+.med-pill { background:#e0e7ff; color:#3730a3; border-radius:6px; padding:2px 8px; font-size:.72rem; margin:2px; display:inline-block; }
+.med-pill-cd { background:#fee2e2; color:#991b1b; }
+.med-pill-prn { background:#fef9c3; color:#92400e; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <span class="badge bg-success fs-6 me-2">{{ shift }} Shift</span>
+    <span class="text-muted" style="font-size:.85rem;">{{ current_date }} — Logged in as <strong>{{ session.get('full_name') }}</strong> ({{ session.get('role','').replace('_',' ').title() }})</span>
+  </div>
+  <div class="d-flex gap-2">
+    <span class="text-muted" style="font-size:.82rem;">{{ resident_alerts|length }} residents</span>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-speedometer2"></i> Main Dashboard
+    </a>
+  </div>
+</div>
+
+{% if not resident_alerts %}
+<div class="alert alert-light">No residents found.</div>
+{% endif %}
+
+{% for ra in resident_alerts %}
+{% set r = ra.resident %}
+<div class="resident-card shadow-sm {% if ra.has_critical %}alert-critical{% elif ra.has_high %}alert-high{% endif %}">
+  <div class="resident-card-header {% if ra.has_critical %}bg-danger bg-opacity-10{% elif ra.has_high %}bg-warning bg-opacity-10{% else %}bg-light{% endif %}">
+    <div>
+      <strong style="font-size:1rem;">{{ r.preferred_name }}</strong>
+      <span class="text-muted ms-2" style="font-size:.82rem;">{{ r.full_name }} — Room {{ r.room_number }}</span>
+      <span class="badge bg-secondary ms-2" style="font-size:.7rem;">{{ r.care_type }}</span>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      {% if ra.has_critical %}
+        <span class="alert-chip-critical"><i class="bi bi-exclamation-octagon-fill"></i> CRITICAL ALERTS</span>
+      {% elif ra.has_high %}
+        <span class="alert-chip-high"><i class="bi bi-exclamation-triangle-fill"></i> HIGH RISK</span>
+      {% else %}
+        <span class="rag-green">Low Risk</span>
+      {% endif %}
+      <a href="{{ url_for('resident_detail', resident_id=r.resident_id) }}" class="btn btn-xs btn-outline-primary" style="padding:2px 10px;font-size:.75rem;">
+        Full Record
+      </a>
+      <a href="{{ url_for('care_plan_new_enhanced', resident_id=r.resident_id) }}" class="btn btn-xs btn-outline-secondary" style="padding:2px 10px;font-size:.75rem;background:#ede9fe;">
+        <i class="bi bi-file-medical-fill"></i> Care Plan
+      </a>
+    </div>
+  </div>
+
+  <div class="p-3">
+    <div class="row g-3">
+      <!-- Alerts column -->
+      <div class="col-md-5">
+        <div style="font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;">
+          <i class="bi bi-exclamation-circle-fill"></i> Alerts & Cautions
+        </div>
+        {% if ra.alerts %}
+          {% for alert in ra.alerts %}
+          <div class="d-flex align-items-start gap-2 mb-1 p-2 rounded"
+               style="background:{% if alert.level=='critical' %}#fee2e2{% elif alert.level=='high' %}#ffedd5{% else %}#fefce8{% endif %};
+                      border-left:3px solid {% if alert.level=='critical' %}#dc2626{% elif alert.level=='high' %}#f97316{% else %}#eab308{% endif %};">
+            <i class="bi {{ alert.icon }} mt-1"
+               style="color:{% if alert.level=='critical' %}#dc2626{% elif alert.level=='high' %}#f97316{% else %}#854d0e{% endif %};font-size:.85rem;flex-shrink:0;"></i>
+            <span style="font-size:.78rem;color:#1e293b;">{{ alert.text }}</span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="text-muted" style="font-size:.8rem;">No active alerts.</div>
+        {% endif %}
+      </div>
+
+      <!-- Medications column -->
+      <div class="col-md-4">
+        <div style="font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;">
+          <i class="bi bi-capsule-pill"></i> Active Medications ({{ ra.meds|length }})
+        </div>
+        {% if ra.meds %}
+          {% for med in ra.meds %}
+          <div class="mb-1">
+            <span class="med-pill {% if med.is_controlled %}med-pill-cd{% elif med.is_prn %}med-pill-prn{% endif %}">
+              {{ med.medication_name }} {{ med.dose }}
+              {% if med.is_controlled %} [CD]{% endif %}
+              {% if med.is_prn %} [PRN]{% endif %}
+            </span>
+            <span style="font-size:.7rem;color:#64748b;">{{ med.frequency }}</span>
+            {% if med.admin_notes %}
+            <div style="font-size:.68rem;color:#f97316;margin-left:4px;"><i class="bi bi-info-circle"></i> {{ med.admin_notes }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="text-muted" style="font-size:.8rem;">No active medications.</div>
+        {% endif %}
+      </div>
+
+      <!-- Clinical snapshot column -->
+      <div class="col-md-3">
+        <div style="font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;">
+          <i class="bi bi-activity"></i> Clinical Snapshot
+        </div>
+        <div style="font-size:.78rem;">
+          <div class="mb-1"><strong>Diagnosis:</strong> {{ r.primary_diagnosis }}</div>
+          {% if r.secondary_diagnoses %}
+          <div class="mb-1 text-muted">+ {{ r.secondary_diagnoses }}</div>
+          {% endif %}
+          <div class="mb-1"><strong>DNACPR:</strong>
+            <span style="color:{% if 'DNACPR' in r.dnacpr_status %}#dc2626{% else %}#065f46{% endif %}">
+              {{ r.dnacpr_status }}
+            </span>
+          </div>
+          <div class="mb-1"><strong>Capacity:</strong> {{ r.mental_capacity }}</div>
+          <div class="mb-1"><strong>Mobility:</strong> {{ r.mobility_level }}</div>
+          <div class="mb-1"><strong>Diet:</strong> {{ r.nutrition_texture }}</div>
+          {% if ra.wellbeing %}
+          <div class="mb-1"><strong>Last wellbeing:</strong> {{ ra.wellbeing.overall_score }}/10
+            <span class="text-muted">({{ ra.wellbeing.assessment_date }})</span></div>
+          {% endif %}
+          {% if ra.care_plan %}
+          <div class="mt-2 p-2 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0;font-size:.72rem;">
+            <strong style="color:#065f46;"><i class="bi bi-file-medical-fill"></i> Active Care Plan v{{ ra.care_plan.version }}</strong>
+            {% if ra.care_plan.goals_of_care %}
+            <div class="mt-1 text-muted">{{ ra.care_plan.goals_of_care[:120] }}...</div>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

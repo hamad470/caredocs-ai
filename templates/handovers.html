@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Handovers{% endblock %}
+{% block page_title %}<i class="bi bi-collection-fill"></i> All Handovers{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <span class="text-muted" style="font-size:.85rem;">{{ handovers|length }} handover(s) shown</span>
+  <a href="{{ url_for('handover_new') }}" class="btn btn-info btn-sm text-white">
+    <i class="bi bi-plus-circle"></i> New Handover
+  </a>
+</div>
+
+{% for h in handovers %}
+<div class="card border-0 shadow-sm mb-2">
+  <div class="card-body py-2">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <strong>{{ h.preferred_name }}</strong>
+        <span class="text-muted ms-2" style="font-size:.8rem;">Rm {{ h.room_number }}</span>
+        {% if h.ai_generated %}<span class="ai-badge ms-2"><i class="bi bi-stars"></i> AI</span>{% endif %}
+      </div>
+      <div class="d-flex gap-1 align-items-center">
+        <span class="text-muted" style="font-size:.78rem;">{{ h.date }}</span>
+        <span class="badge bg-light text-dark">{{ h.shift_ending }} → {{ h.shift_starting }}</span>
+        <a href="{{ url_for('handover_pdf', hid=h.id) }}" class="btn btn-xs btn-outline-secondary" style="padding:2px 8px;font-size:.75rem;"><i class="bi bi-file-pdf"></i></a>
+      </div>
+    </div>
+    <div class="text-muted" style="font-size:.78rem;">Compiled by: {{ h.compiled_by }}</div>
+    {% if h.overall_summary %}
+    <div class="narrative-box mt-2">{{ h.overall_summary[:200] }}{% if h.overall_summary|length > 200 %}...{% endif %}</div>
+    {% endif %}
+    {% if h.concerns_next_shift %}
+    <div class="mt-1" style="font-size:.8rem;"><i class="bi bi-exclamation-circle text-warning"></i> <strong>Concerns:</strong> {{ h.concerns_next_shift }}</div>
+    {% endif %}
+    {% if h.escalation_required == 'Yes' %}
+    <div class="mt-1"><span class="badge bg-danger">Escalation Required</span> {{ h.escalation_details }}</div>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="alert alert-light">No handovers recorded.</div>
+{% endfor %}
+{% endblock %}

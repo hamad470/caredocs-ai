@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}MAR Entry — {{ med.medication_name }}{% endblock %}
+{% block page_title %}<i class="bi bi-clipboard-check"></i> MAR Entry — {{ med.medication_name }}{% endblock %}
+
+{% block content %}
+<div class="alert alert-secondary d-flex gap-2 align-items-start py-2 px-3" style="font-size:.82rem;">
+  <i class="bi bi-lock-fill mt-1"></i>
+  <div>
+    <strong>No AI is applied to this record.</strong>
+    The medication administration record is a verbatim legal audit trail, so nothing here is
+    summarised, rephrased or predicted by a model &mdash; what a nurse types is what is stored and
+    what is read back. MAR data does feed the fall-risk model, but only as one derived number
+    (seven-day adherence rate); the individual entries are never sent to a language model.
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="form-section">
+      <h5>Medication Details</h5>
+      <table class="table table-sm table-borderless mb-0" style="font-size:.85rem;">
+        <tr><td class="text-muted">Resident</td><td><strong>{{ med.preferred_name }}</strong></td></tr>
+        <tr><td class="text-muted">Medication</td><td><strong>{{ med.medication_name }}</strong></td></tr>
+        <tr><td class="text-muted">Dose</td><td>{{ med.dose }} — {{ med.route }}</td></tr>
+        <tr><td class="text-muted">Frequency</td><td>{{ med.frequency }}</td></tr>
+        <tr><td class="text-muted">Indication</td><td>{{ med.indication }}</td></tr>
+        {% if med.is_controlled %}<tr><td colspan="2"><span class="badge bg-danger">Controlled Drug — Double Sign Required</span></td></tr>{% endif %}
+        {% if med.admin_notes %}
+        <tr><td class="text-muted">Admin Notes</td><td class="text-warning fw-bold">{{ med.admin_notes }}</td></tr>
+        {% endif %}
+        {% if med.prn_instructions and med.is_prn %}
+        <tr><td class="text-muted">PRN Instructions</td><td>{{ med.prn_instructions }}</td></tr>
+        {% endif %}
+      </table>
+    </div>
+
+    <div class="form-section">
+      <h5>Record Administration</h5>
+      <form method="post">
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label">Date</label>
+            <input type="date" name="date" class="form-control" value="{{ today }}" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Time Given</label>
+            <input type="time" name="time_given" class="form-control" value="{{ now }}" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Shift</label>
+            <select name="shift" class="form-select">
+              <option>Morning</option><option>Afternoon</option><option>Night</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Administered? <span class="text-danger">*</span></label>
+            <select name="administered" class="form-select" required id="administered">
+              <option value="yes">Yes — given as prescribed</option>
+              <option value="no">No — not available</option>
+              <option value="refused">Refused by resident</option>
+              <option value="not_available">Medication not available</option>
+              <option value="withheld">Withheld on clinical grounds</option>
+            </select>
+          </div>
+          <div class="col-12" id="refusalGroup" style="display:none;">
+            <label class="form-label">Reason for Non-Administration</label>
+            <textarea name="refusal_reason" class="form-control" rows="2"></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Notes</label>
+            <textarea name="notes" class="form-control" rows="2" placeholder="Any additional notes..."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Given By</label>
+            <input type="text" class="form-control" value="{{ session.get('full_name','') }}" disabled>
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-success w-100">
+              <i class="bi bi-save"></i> Record Administration
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="form-section">
+      <h5>Recent Administration History (Last 7 days)</h5>
+      <div class="table-responsive">
+        <table class="table table-sm" style="font-size:.82rem;">
+          <thead>
+            <tr><th>Date</th><th>Time</th><th>Shift</th><th>Administered</th><th>By</th></tr>
+          </thead>
+          <tbody>
+            {% for rec in recent %}
+            <tr>
+              <td>{{ rec.date }}</td>
+              <td>{{ rec.time_given or '—' }}</td>
+              <td>{{ rec.shift }}</td>
+              <td>
+                <span class="badge bg-{{ 'success' if rec.administered=='yes' else 'danger' }}">
+                  {{ rec.administered | title }}
+                </span>
+              </td>
+              <td>{{ rec.given_by }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-muted text-center">No records yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('administered').addEventListener('change', function() {
+  document.getElementById('refusalGroup').style.display =
+    this.value !== 'yes' ? 'block' : 'none';
+});
+</script>
+{% endblock %}

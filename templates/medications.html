@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Medications{% endblock %}
+{% block page_title %}<i class="bi bi-capsule-pill"></i> Medications & MAR{% endblock %}
+
+{% block content %}
+<div class="alert alert-secondary d-flex gap-2 align-items-start py-2 px-3" style="font-size:.82rem;">
+  <i class="bi bi-lock-fill mt-1"></i>
+  <div>
+    <strong>Record only &mdash; no AI on this screen.</strong>
+    Medication and MAR entries are stored and displayed exactly as entered. The only downstream
+    use is the seven-day adherence rate, which is one of the fifteen features behind the fall-risk
+    model on the <em>Fall Risk Ranking</em> page.
+  </div>
+</div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <span class="text-muted" style="font-size:.85rem;">{{ meds|length }} active medication(s)</span>
+  {% if session.get('role') in ('manager','senior_carer') %}
+  <a href="{{ url_for('medication_new') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-circle"></i> Add Medication
+  </a>
+  {% endif %}
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover shadow-sm" style="background:#fff;border-radius:8px;overflow:hidden;">
+    <thead style="background:#1e3a5f;color:#fff;font-size:.8rem;">
+      <tr>
+        <th>Resident</th><th>Medication</th><th>Dose</th><th>Route</th>
+        <th>Frequency</th><th>Indication</th><th>Flags</th><th>Review</th><th>MAR</th>
+      </tr>
+    </thead>
+    <tbody style="font-size:.82rem;">
+      {% for med in meds %}
+      <tr>
+        <td>
+          <strong>{{ med.preferred_name }}</strong>
+          <div class="text-muted" style="font-size:.72rem;">Rm {{ med.room_number }}</div>
+        </td>
+        <td>
+          <strong>{{ med.medication_name }}</strong>
+          {% if med.generic_name and med.generic_name != med.medication_name %}
+          <div class="text-muted" style="font-size:.72rem;">{{ med.generic_name }}</div>
+          {% endif %}
+        </td>
+        <td>{{ med.dose }}</td>
+        <td>{{ med.route }}</td>
+        <td style="max-width:150px;font-size:.78rem;">{{ med.frequency }}</td>
+        <td>{{ med.indication }}</td>
+        <td>
+          {% if med.is_controlled %}<span class="badge bg-danger me-1">CD</span>{% endif %}
+          {% if med.is_prn %}<span class="badge bg-info me-1">PRN</span>{% endif %}
+        </td>
+        <td>{{ med.review_date or '—' }}</td>
+        <td>
+          <a href="{{ url_for('mar_record', mid=med.id) }}" class="btn btn-xs btn-outline-success" style="padding:2px 8px;font-size:.75rem;">
+            <i class="bi bi-clipboard-check"></i> MAR
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="text-center text-muted py-4">No active medications.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

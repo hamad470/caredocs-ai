@@ -1,0 +1,642 @@
+{% extends "base.html" %}
+{% block title %}Ask the Records{% endblock %}
+{% block page_title %}Ask the Records — RAG Assistant{% endblock %}
+
+{% block extra_css %}
+<style>
+  .chat-wrap        { display:flex; flex-direction:column; height:calc(100vh - 190px); min-height:520px; }
+  .chat-scroll      { flex:1; overflow-y:auto; padding:4px 2px 12px; }
+  .msg              { max-width:min(920px,100%); margin-bottom:18px; }
+  .msg.user         { margin-left:auto; }
+  .bubble           { border-radius:14px; padding:12px 16px; font-size:.92rem; line-height:1.55; }
+  .msg.user .bubble { background:#1d4ed8; color:#fff; border-bottom-right-radius:4px; }
+  .msg.bot .bubble  { background:#fff; border:1px solid #e2e8f0; border-bottom-left-radius:4px; }
+  .bubble table     { width:100%; border-collapse:collapse; margin:.6rem 0; font-size:.78rem; }
+  .bubble th,.bubble td { border:1px solid #e2e8f0; padding:4px 7px; text-align:left; }
+  .bubble th        { background:#f1f5f9; font-weight:600; }
+  .bubble h1,.bubble h2,.bubble h3 { font-size:.95rem; font-weight:700; margin:.7rem 0 .3rem; }
+  .bubble ul,.bubble ol { padding-left:1.15rem; margin:.35rem 0; }
+  .bubble code      { background:#f1f5f9; padding:1px 5px; border-radius:4px; font-size:.82em; }
+  .cite             { display:inline-block; background:#e0e7ff; color:#3730a3; border-radius:5px;
+                      padding:0 5px; font-size:.72rem; font-weight:700; cursor:pointer; }
+  .flagline         { color:#b91c1c; font-weight:600; }
+  .meta-row         { font-size:.72rem; color:#64748b; margin-top:6px; display:flex;
+                      gap:10px; flex-wrap:wrap; align-items:center; }
+  .pill             { background:#f1f5f9; border:1px solid #e2e8f0; border-radius:20px;
+                      padding:1px 9px; font-size:.7rem; color:#475569; }
+  .panel            { border:1px solid #e2e8f0; border-radius:10px; margin-top:8px; background:#fbfdff; }
+  .panel > summary  { cursor:pointer; padding:7px 12px; font-size:.78rem; font-weight:600; color:#334155; }
+  .panel .body      { padding:4px 12px 12px; font-size:.78rem; }
+  .src              { border-left:3px solid #cbd5e1; padding:4px 10px; margin-bottom:8px; background:#fff; }
+  .src.cited        { border-left-color:#4f46e5; background:#f8f7ff; }
+  .src .hdr         { font-size:.72rem; color:#475569; font-weight:600; }
+  .src .txt         { font-size:.76rem; color:#334155; }
+  .suggest          { border:1px solid #c7d2fe; background:#eef2ff; color:#3730a3; border-radius:20px;
+                      padding:4px 12px; font-size:.76rem; cursor:pointer; margin:3px 4px 0 0; }
+  .suggest:hover    { background:#e0e7ff; }
+  .composer         { border-top:1px solid #e2e8f0; padding-top:10px; background:#f6f8fb; }
+  .typing span      { display:inline-block; width:6px; height:6px; margin-right:3px; border-radius:50%;
+                      background:#94a3b8; animation:blink 1.2s infinite; }
+  .typing span:nth-child(2){animation-delay:.2s} .typing span:nth-child(3){animation-delay:.4s}
+  @keyframes blink { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
+  .kv               { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.72rem;
+                      white-space:pre-wrap; color:#334155; }
+  .chat-item        { display:flex; align-items:center; gap:4px; padding:7px 10px;
+                      border-bottom:1px solid #f1f5f9; }
+  .chat-item:hover  { background:#f8fafc; }
+  .chat-item.active { background:#eef2ff; border-left:3px solid #4f46e5; padding-left:7px; }
+  .chat-item .chat-open { flex:1; min-width:0; text-decoration:none; color:inherit; }
+  .chat-title       { font-size:.78rem; font-weight:600; color:#1e293b;
+                      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chat-sub         { font-size:.68rem; color:#94a3b8; }
+  .chat-del         { border:none; background:none; color:#cbd5e1; font-size:1.05rem;
+                      line-height:1; padding:0 4px; cursor:pointer; }
+  .chat-del:hover   { color:#dc2626; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if not index_status.built %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center py-2">
+  <div><i class="bi bi-exclamation-triangle-fill"></i>
+    <strong>The knowledge index has not been built yet.</strong>
+    The assistant can still compute analytics, but it cannot quote care records until you build it.</div>
+  <form method="post" action="{{ url_for('chat_build_index') }}" class="mb-0">
+    <button class="btn btn-sm btn-warning">Build index now</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-9">
+    <div class="chat-wrap">
+
+      <!-- ── controls ────────────────────────────────────────────────── -->
+      <div class="card mb-2">
+        <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+          <select id="scope" class="form-select form-select-sm" style="width:auto">
+            <option value="">All residents (whole home)</option>
+            {% for r in residents %}
+            <option value="{{ r.resident_id }}">{{ r.preferred_name or r.full_name }} — {{ r.resident_id }}</option>
+            {% endfor %}
+          </select>
+
+          <select id="period" class="form-select form-select-sm" style="width:auto">
+            <option value="12" selected>Last 12 months</option>
+            <option value="3">Last 3 months</option>
+            <option value="6">Last 6 months</option>
+            <option value="24">Last 24 months</option>
+            <option value="120">Entire record</option>
+          </select>
+
+          <select id="provider" class="form-select form-select-sm" style="width:auto"
+                  title="Offline mode answers from retrieved records alone, with no model — useful for seeing what the retrieval is doing on its own">
+            <option value="">Gemini{% if not ai_providers.gemini %} (no key — offline){% endif %}</option>
+            <option value="template">Offline — evidence only, no model</option>
+          </select>
+
+          <div class="ms-auto d-flex gap-2 align-items-center">
+            <span class="pill" title="Chunks in the hybrid index">
+              <i class="bi bi-database"></i> {{ '{:,}'.format(index_status.num_chunks or 0) }} chunks
+            </span>
+            <button id="aiTestBtn" class="btn btn-sm btn-outline-secondary"
+                    title="Ping Gemini on every configured key and show the exact error if one fails">
+              <i class="bi bi-plug"></i> Test AI
+            </button>
+            <button id="newChat" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-arrow-clockwise"></i> New chat
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="aiResult" class="card mb-2 d-none">
+        <div class="card-body py-2" style="font-size:.78rem"></div>
+      </div>
+
+      <!-- ── messages ────────────────────────────────────────────────── -->
+      <div id="scroll" class="chat-scroll">
+        {% if history %}
+          {% for m in history %}
+          <div class="msg {{ 'user' if m.role == 'user' else 'bot' }}">
+            <div class="bubble" data-md>{{ m.content }}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div class="msg bot">
+          <div class="bubble">
+            <strong>Ask anything about your residents.</strong>
+            <p class="mb-1 mt-2" style="font-size:.86rem;color:#475569">
+              I search 12 months of care notes, incidents, care plans, risk and wellbeing
+              assessments, handovers, medications and family contact — and I compute
+              statistics directly from the database, so counts and averages are exact.
+              Every answer cites the records it used.</p>
+            <div id="starters"></div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- ── composer ────────────────────────────────────────────────── -->
+      <div class="composer">
+        <form id="chatForm" class="d-flex gap-2">
+          <input id="q" class="form-control" autocomplete="off"
+                 placeholder="e.g. Has Maggie's hydration got worse over the last 6 months, and what are staff saying about it?">
+          <button class="btn btn-primary px-3" id="sendBtn"><i class="bi bi-send-fill"></i></button>
+        </form>
+        <div class="meta-row mt-1">
+          <i class="bi bi-shield-check"></i>
+          Answers are grounded in this home's records and audit-logged. Clinical decisions remain with qualified staff.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── side rail ─────────────────────────────────────────────────── -->
+  <div class="col-lg-3">
+
+    <div class="card mb-3">
+      <div class="card-header py-2 d-flex align-items-center justify-content-between"
+           style="font-size:.82rem;font-weight:600">
+        <span><i class="bi bi-chat-left-text"></i> Conversations</span>
+        <button id="newChatSide" class="btn btn-sm btn-primary py-0 px-2"
+                style="font-size:.72rem" title="Start a new conversation">
+          <i class="bi bi-plus-lg"></i> New
+        </button>
+      </div>
+      <div id="chatList" class="list-group list-group-flush"
+           style="max-height:270px; overflow-y:auto;">
+        {% for c in conversations %}
+        <div class="chat-item {% if c.session_key == active_chat %}active{% endif %}"
+             data-key="{{ c.session_key }}">
+          <a href="{{ url_for('chat_page', c=c.session_key) }}" class="chat-open">
+            <div class="chat-title">{{ c.title }}</div>
+            <div class="chat-sub">{{ c.questions }} question{% if c.questions != 1 %}s{% endif %}
+              · {{ (c.last_message_at or c.updated or '')[:16] }}</div>
+          </a>
+          <button class="chat-del" title="Delete conversation">&times;</button>
+        </div>
+        {% else %}
+        <div class="px-3 py-3 text-muted" style="font-size:.76rem">
+          No conversations yet — ask something below.
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header py-2" style="font-size:.82rem;font-weight:600">
+        <i class="bi bi-cpu"></i> Retrieval settings
+      </div>
+      <div class="card-body py-2">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="optHybrid" checked>
+          <label class="form-check-label" style="font-size:.78rem" for="optHybrid">
+            Hybrid BM25 + dense</label>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="optMmr" checked>
+          <label class="form-check-label" style="font-size:.78rem" for="optMmr">
+            MMR diversification</label>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="optRecency" checked>
+          <label class="form-check-label" style="font-size:.78rem" for="optRecency">
+            Recency weighting</label>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="optPlanner" checked>
+          <label class="form-check-label" style="font-size:.78rem" for="optPlanner">
+            LLM query planner</label>
+        </div>
+        <hr class="my-2">
+        <label class="form-label mb-1" style="font-size:.76rem">Records retrieved (top-k)</label>
+        <input type="range" class="form-range" id="topk" min="3" max="16" value="8">
+        <div style="font-size:.72rem;color:#64748b">k = <span id="topkVal">8</span></div>
+        <p class="mb-0 mt-2" style="font-size:.7rem;color:#94a3b8">
+          Toggle stages off to demonstrate the ablation study — the trace panel under each
+          answer shows what changed.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header py-2" style="font-size:.82rem;font-weight:600">
+        <i class="bi bi-info-circle"></i> Index
+      </div>
+      <div class="card-body py-2" style="font-size:.75rem;color:#475569">
+        <div><strong>Lexical:</strong> {{ index_status.lexical_backend or '—' }}</div>
+        <div><strong>Dense:</strong> {{ index_status.dense_backend or '—' }}</div>
+        <div><strong>Fusion:</strong> {{ index_status.fusion or '—' }}</div>
+        <div><strong>Documents:</strong> {{ index_status.num_docs or 0 }}</div>
+        <div><strong>Chunks:</strong> {{ index_status.num_chunks or 0 }}</div>
+        {% if index_status.date_range %}
+        <div><strong>Covers:</strong> {{ index_status.date_range[0] }} → {{ index_status.date_range[1] }}</div>
+        {% endif %}
+        <div><strong>Built:</strong> {{ index_status.built_at or 'never' }}</div>
+        <form method="post" action="{{ url_for('chat_build_index') }}" class="mt-2">
+          <button class="btn btn-sm btn-outline-primary w-100">Rebuild index</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const scroll = document.getElementById('scroll');
+const form   = document.getElementById('chatForm');
+const input  = document.getElementById('q');
+const sendBtn= document.getElementById('sendBtn');
+
+const STARTERS = [
+  "What has happened with Maggie over the last 12 months?",
+  "How many falls did we have in the last 6 months, and who is most affected?",
+  "Which residents are losing weight?",
+  "What is our medication adherence rate and where are the refusals?",
+  "Which risk assessments are overdue?",
+  "Is anyone's hydration consistently below target?"
+];
+
+/* ── minimal, escaping markdown renderer (no CDN, no innerHTML of raw text) ── */
+function esc(s){ return s.replace(/[&<>"']/g, c => (
+  {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function mdInline(s){
+  s = esc(s);
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  s = s.replace(/\[S(\d+)\]/g, '<span class="cite" data-s="$1">S$1</span>');
+  return s;
+}
+
+function renderMarkdown(text){
+  const lines = (text || '').split('\n');
+  let html = '', list = null, i = 0;
+  const closeList = () => { if (list) { html += `</${list}>`; list = null; } };
+
+  while (i < lines.length){
+    const line = lines[i];
+
+    // table
+    if (/^\s*\|.*\|\s*$/.test(line) && i+1 < lines.length && /^\s*\|[\s\-:|]+\|\s*$/.test(lines[i+1])){
+      closeList();
+      const cells = l => l.trim().replace(/^\||\|$/g,'').split('|').map(c => c.trim());
+      html += '<div style="overflow-x:auto"><table><thead><tr>' +
+              cells(line).map(c => `<th>${mdInline(c)}</th>`).join('') + '</tr></thead><tbody>';
+      i += 2;
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){
+        html += '<tr>' + cells(lines[i]).map(c => `<td>${mdInline(c)}</td>`).join('') + '</tr>';
+        i++;
+      }
+      html += '</tbody></table></div>';
+      continue;
+    }
+    if (/^\s*#{1,4}\s+/.test(line)){
+      closeList(); html += `<h3>${mdInline(line.replace(/^\s*#{1,4}\s+/,''))}</h3>`; i++; continue;
+    }
+    if (/^\s*[-*•]\s+/.test(line)){
+      if (list !== 'ul'){ closeList(); html += '<ul>'; list = 'ul'; }
+      html += `<li>${mdInline(line.replace(/^\s*[-*•]\s+/,''))}</li>`; i++; continue;
+    }
+    if (/^\s*\d+[.)]\s+/.test(line)){
+      if (list !== 'ol'){ closeList(); html += '<ol>'; list = 'ol'; }
+      html += `<li>${mdInline(line.replace(/^\s*\d+[.)]\s+/,''))}</li>`; i++; continue;
+    }
+    if (!line.trim()){ closeList(); i++; continue; }
+    closeList();
+    const cls = /^\s*⚠/.test(line) ? ' class="flagline"' : '';
+    html += `<p${cls} style="margin:.35rem 0">${mdInline(line)}</p>`;
+    i++;
+  }
+  closeList();
+  return html;
+}
+
+document.querySelectorAll('[data-md]').forEach(el => {
+  el.innerHTML = renderMarkdown(el.textContent);
+});
+
+function addStarters(){
+  const box = document.getElementById('starters');
+  if (!box) return;
+  STARTERS.forEach(s => {
+    const b = document.createElement('button');
+    b.className = 'suggest'; b.type = 'button'; b.textContent = s;
+    b.onclick = () => { input.value = s; form.requestSubmit(); };
+    box.appendChild(b);
+  });
+}
+addStarters();
+
+function el(tag, cls, html){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (html !== undefined) n.innerHTML = html;
+  return n;
+}
+
+function addUser(text){
+  const w = el('div','msg user');
+  w.appendChild(el('div','bubble', esc(text)));
+  scroll.appendChild(w); scroll.scrollTop = scroll.scrollHeight;
+}
+
+function addTyping(){
+  const w = el('div','msg bot','<div class="bubble"><span class="typing">'+
+    '<span></span><span></span><span></span></span> searching the records…</div>');
+  w.id = 'typing'; scroll.appendChild(w); scroll.scrollTop = scroll.scrollHeight;
+  return w;
+}
+
+function sourcesPanel(sources){
+  if (!sources.length) return null;
+  const citedN = sources.filter(s => s.cited).length;
+  const d = el('details','panel');
+  d.appendChild(el('summary', null,
+    `<i class="bi bi-journal-text"></i> Sources — ${sources.length} record(s) retrieved, ${citedN} cited`));
+  const body = el('div','body');
+  sources.forEach(s => {
+    const box = el('div','src' + (s.cited ? ' cited' : ''));
+    box.id = 'src-' + s.label;
+    box.appendChild(el('div','hdr',
+      `<span class="cite">${s.label}</span> ${esc(s.source_label)} · ${esc(s.date || '—')} · ` +
+      `${esc(s.resident_name || s.resident_id)} · <em>${esc(s.section || '')}</em> · ref ${esc(s.source_id)}` +
+      ` <span class="pill">score ${(s.score ?? 0).toFixed(4)}</span>` +
+      (s.bm25_rank ? ` <span class="pill">BM25 #${s.bm25_rank}</span>` : '') +
+      (s.dense_rank ? ` <span class="pill">dense #${s.dense_rank}</span>` : '')));
+    box.appendChild(el('div','txt', esc(s.text)));
+    body.appendChild(box);
+  });
+  d.appendChild(body);
+  return d;
+}
+
+function toolsPanel(toolResults){
+  const usable = (toolResults || []).filter(t => !t.error);
+  if (!usable.length) return null;
+  const d = el('details','panel');
+  d.appendChild(el('summary', null,
+    `<i class="bi bi-table"></i> Analytics computed — ${usable.map(t => t.tool).join(', ')}`));
+  const body = el('div','body');
+  usable.forEach((t, idx) => {
+    body.appendChild(el('div', null, `<strong>${esc(t.title || t.tool)}</strong>`));
+    body.appendChild(el('div', null, `<span style="font-size:.76rem;color:#475569">${esc(t.summary||'')}</span>`));
+    if (t.columns && t.columns.length && t.rows && t.rows.length){
+      let h = '<div style="overflow-x:auto"><table><thead><tr>' +
+        t.columns.map(c => `<th>${esc(String(c))}</th>`).join('') + '</tr></thead><tbody>';
+      t.rows.slice(0,25).forEach(r => {
+        h += '<tr>' + r.map(v => `<td>${esc(v === null || v === undefined ? '' : String(v))}</td>`).join('') + '</tr>';
+      });
+      h += '</tbody></table></div>';
+      body.appendChild(el('div', null, h));
+      if (t.rows.length > 25)
+        body.appendChild(el('div', null,
+          `<span style="font-size:.7rem;color:#94a3b8">${t.rows.length - 25} further rows not shown</span>`));
+    }
+    if (t.chart && t.chart.labels && t.chart.labels.length){
+      const cid = `chart_${Date.now()}_${idx}`;
+      body.appendChild(el('div', null,
+        `<canvas id="${cid}" height="120" style="margin:6px 0 14px"></canvas>`));
+      drawChart(cid, t.chart);
+    }
+  });
+  d.appendChild(body);
+  return d;
+}
+
+function tracePanel(trace){
+  const d = el('details','panel');
+  d.appendChild(el('summary', null, '<i class="bi bi-diagram-3"></i> How this answer was built'));
+  const r = trace.retrieval || {};
+  const firstQ = Object.keys(r)[0];
+  const rt = firstQ ? r[firstQ] : {};
+  const rows = [
+    ['Planner', trace.planner],
+    ['Intent', trace.intent],
+    ['Question resolved to', trace.standalone_question],
+    ['Residents in scope', (trace.residents || []).join(', ') || 'whole home'],
+    ['Period', `${trace.date_from} → ${trace.date_to} (${trace.window_label || ''})`],
+    ['Analytics tools', (trace.tools_called || []).map(t => t.name).join(', ') || 'none'],
+    ['Retrieval queries', (trace.retrieval_queries || []).join(' | ')],
+    ['Candidates after metadata filter', `${rt.candidates_after_filter ?? '—'} of ${rt.corpus_size ?? '—'} chunks`],
+    ['BM25 / dense hits', `${rt.bm25_hits ?? '—'} / ${rt.dense_hits ?? '—'} (fused pool ${rt.fused_pool ?? '—'})`],
+    ['Stages', `hybrid=${rt.hybrid} · mmr=${rt.mmr} · recency=${rt.recency_weighting} · faiss=${rt.faiss} · backend=${rt.backend}`],
+    ['Records retrieved / cited', `${trace.chunks_retrieved} / ${trace.chunks_cited}`],
+    ['Answer model', trace.answer_provider + (trace.llm && trace.llm.model ? ` (${trace.llm.model})` : '')],
+    ['Total latency', `${trace.latency_ms} ms`],
+  ];
+  const body = el('div','body');
+  body.appendChild(el('div','kv', rows.map(([k,v]) => `${k.padEnd(32,'·')} ${v ?? '—'}`).join('\n')));
+  d.appendChild(body);
+  return d;
+}
+
+function drawChart(id, spec){
+  const run = () => {
+    const ctx = document.getElementById(id);
+    if (!ctx || typeof Chart === 'undefined') return;
+    new Chart(ctx, {
+      type: spec.type === 'line' ? 'line' : 'bar',
+      data: { labels: spec.labels,
+              datasets: spec.series.map(s => ({
+                label: s.name, data: s.data,
+                borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,.35)',
+                tension: .3, fill: spec.type === 'line' })) },
+      options: { responsive:true, plugins:{ legend:{ labels:{ font:{ size:10 } } } },
+                 scales:{ x:{ ticks:{ font:{ size:9 } } }, y:{ ticks:{ font:{ size:9 } }, beginAtZero:true } } }
+    });
+  };
+  if (typeof Chart === 'undefined'){ setTimeout(run, 400); } else { run(); }
+}
+
+function addBot(data){
+  const w = el('div','msg bot');
+  const bubble = el('div','bubble', renderMarkdown(data.answer));
+  w.appendChild(bubble);
+
+  const meta = el('div','meta-row');
+  meta.innerHTML =
+    `<span class="pill"><i class="bi bi-robot"></i> ${esc(data.provider)}</span>` +
+    `<span class="pill"><i class="bi bi-stopwatch"></i> ${data.latency_ms} ms</span>` +
+    `<span class="pill"><i class="bi bi-search"></i> ${data.trace.chunks_retrieved} records</span>` +
+    `<span class="pill"><i class="bi bi-calculator"></i> ${(data.trace.tools_called||[]).length} analytics</span>` +
+    `<span class="pill"><i class="bi bi-calendar3"></i> ${data.trace.date_from} → ${data.trace.date_to}</span>`;
+  w.appendChild(meta);
+
+  if (data.trace.offline_reason){
+    const warn = el('div','meta-row');
+    warn.innerHTML = `<span class="pill" style="background:#fef3c7;border-color:#fde68a;color:#92400e">` +
+      `<i class="bi bi-exclamation-triangle"></i> No AI answer — ${esc(data.trace.offline_reason)}</span>`;
+    w.appendChild(warn);
+  }
+
+  const t = toolsPanel(data.tools);   if (t) w.appendChild(t);
+  const s = sourcesPanel(data.sources); if (s) w.appendChild(s);
+  w.appendChild(tracePanel(data.trace));
+
+  if ((data.suggestions || []).length){
+    const box = el('div', null, '');
+    data.suggestions.forEach(q => {
+      const b = el('button','suggest', esc(q));
+      b.type = 'button';
+      b.onclick = () => { input.value = q; form.requestSubmit(); };
+      box.appendChild(b);
+    });
+    w.appendChild(box);
+  }
+
+  // clicking [S#] in the answer opens and highlights that source
+  bubble.querySelectorAll('.cite').forEach(c => {
+    c.onclick = () => {
+      const panel = s; if (!panel) return;
+      panel.open = true;
+      const target = document.getElementById('src-S' + c.dataset.s);
+      if (target){
+        target.scrollIntoView({behavior:'smooth', block:'center'});
+        target.style.transition = 'background .4s';
+        target.style.background = '#fef9c3';
+        setTimeout(() => { target.style.background = ''; }, 1200);
+      }
+    };
+  });
+
+  scroll.appendChild(w);
+  scroll.scrollTop = scroll.scrollHeight;
+}
+
+document.getElementById('topk').addEventListener('input', e => {
+  document.getElementById('topkVal').textContent = e.target.value;
+});
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  sendBtn.disabled = true;
+  addUser(q);
+  const typing = addTyping();
+
+  try {
+    const res = await fetch("{{ url_for('api_chat') }}", {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        question: q,
+        resident_id: document.getElementById('scope').value,
+        months: parseInt(document.getElementById('period').value, 10),
+        provider: document.getElementById('provider').value,
+        top_k: parseInt(document.getElementById('topk').value, 10),
+        use_hybrid: document.getElementById('optHybrid').checked,
+        use_mmr: document.getElementById('optMmr').checked,
+        use_recency: document.getElementById('optRecency').checked,
+        use_llm_planner: document.getElementById('optPlanner').checked
+      })
+    });
+    const data = await res.json();
+    typing.remove();
+    if (data.error){
+      addBot({answer: '**Something went wrong.**\n\n' + data.error, sources: [], tools: [],
+              trace: {chunks_retrieved:0, chunks_cited:0, tools_called:[], latency_ms:0},
+              suggestions: [], provider: 'error', latency_ms: 0});
+    } else {
+      addBot(data);
+      refreshChatList();
+    }
+  } catch (err){
+    typing.remove();
+    addBot({answer: '**Network error** — ' + err.message, sources: [], tools: [],
+            trace: {chunks_retrieved:0, chunks_cited:0, tools_called:[], latency_ms:0},
+            suggestions: [], provider: 'error', latency_ms: 0});
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
+  }
+});
+
+document.getElementById('aiTestBtn').addEventListener('click', async function () {
+  const card = document.getElementById('aiResult');
+  const body = card.querySelector('.card-body');
+  card.classList.remove('d-none');
+  this.disabled = true;
+  body.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>' +
+                   'Testing every configured Gemini key…';
+  try {
+    const d = await (await fetch("{{ url_for('api_ai_diagnostics') }}", {method:'POST'})).json();
+    let h = '<table class="table table-sm mb-1" style="font-size:.75rem"><thead><tr>' +
+            '<th>Provider</th><th>Status</th><th>Model</th><th>Latency</th><th>Detail</th>' +
+            '</tr></thead><tbody>';
+    Object.entries(d.providers || {}).forEach(([name, v]) => {
+      const badge = v.ok ? '<span class="badge bg-success">working</span>'
+        : (v.configured ? '<span class="badge bg-danger">failing</span>'
+                        : '<span class="badge bg-secondary">no key</span>');
+      h += `<tr><td class="text-capitalize">${name}</td><td>${badge}</td>` +
+           `<td>${esc(v.model || '—')}</td><td>${v.ok ? v.latency_ms + ' ms' : '—'}</td>` +
+           `<td class="text-muted">${esc(v.error || 'OK')}</td></tr>`;
+      if (v.available_models && v.available_models.length){
+        h += `<tr><td></td><td colspan="4" class="text-muted" style="font-size:.7rem">` +
+             `models this key can call (${esc(v.api_version || '')}): ` +
+             esc(v.available_models.join(', ')) + `</td></tr>`;
+      }
+    });
+    h += '</tbody></table><div class="' +
+         ((d.working || []).length ? 'text-success' : 'text-danger') +
+         '">' + esc(d.verdict || '') + '</div>';
+    body.innerHTML = h;
+  } catch (e) {
+    body.innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
+  } finally {
+    this.disabled = false;
+  }
+});
+
+async function newConversation(){
+  await fetch("{{ url_for('chat_reset') }}", {method:'POST'});
+  location.href = "{{ url_for('chat_page') }}";
+}
+document.getElementById('newChat').addEventListener('click', newConversation);
+document.getElementById('newChatSide').addEventListener('click', newConversation);
+
+// Delete a conversation from the sidebar.
+document.getElementById('chatList').addEventListener('click', async e => {
+  const btn = e.target.closest('.chat-del');
+  if (!btn) return;
+  e.preventDefault();
+  const item = btn.closest('.chat-item');
+  const key = item.dataset.key;
+  if (!confirm('Delete this conversation and its messages? This cannot be undone.')) return;
+  const res = await fetch(`/api/chats/${encodeURIComponent(key)}/delete`, {method:'POST'});
+  if (res.ok){
+    if (item.classList.contains('active')) location.href = "{{ url_for('chat_page') }}";
+    else item.remove();
+  }
+});
+
+// After an answer lands, the current conversation may have just been titled
+// from its first question — refresh the list so the sidebar matches.
+async function refreshChatList(){
+  try {
+    const d = await (await fetch("{{ url_for('api_chats') }}")).json();
+    const list = document.getElementById('chatList');
+    if (!d.conversations || !d.conversations.length) return;
+    list.innerHTML = d.conversations.map(c => `
+      <div class="chat-item ${c.session_key === d.active ? 'active' : ''}" data-key="${esc(c.session_key)}">
+        <a href="?c=${encodeURIComponent(c.session_key)}" class="chat-open">
+          <div class="chat-title">${esc(c.title || 'New conversation')}</div>
+          <div class="chat-sub">${c.questions} question${c.questions === 1 ? '' : 's'}
+            · ${esc((c.last_message_at || c.updated || '').slice(0,16))}</div>
+        </a>
+        <button class="chat-del" title="Delete conversation">&times;</button>
+      </div>`).join('');
+  } catch (e) { /* the list is cosmetic — never break the chat over it */ }
+}
+
+input.focus();
+scroll.scrollTop = scroll.scrollHeight;
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}

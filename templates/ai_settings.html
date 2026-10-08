@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}AI Settings{% endblock %}
+{% block page_title %}AI Settings — Gemini keys{% endblock %}
+
+{% block extra_css %}
+<style>
+.key-card {
+  background:#fff; border-radius:12px; border:1px solid #e2e8f0;
+  padding:1.6rem; margin-bottom:1.2rem;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
+}
+.key-card .provider-logo {
+  width:40px; height:40px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.3rem; font-weight:700; color:#fff;
+  flex-shrink:0;
+}
+.status-pill {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 12px; border-radius:20px; font-size:.78rem; font-weight:600;
+}
+.status-pill.active   { background:#d1fae5; color:#065f46; }
+.status-pill.inactive { background:#f1f5f9; color:#64748b; }
+.status-pill.cooling  { background:#fef9c3; color:#a16207; }
+.status-pill.dead     { background:#fee2e2; color:#b91c1c; }
+.dot { width:8px; height:8px; border-radius:50%; background:currentColor; }
+.key-input-wrap { position:relative; }
+.key-input-wrap input { padding-right:3rem; font-family:monospace; font-size:.85rem; }
+.eye-btn {
+  position:absolute; right:.6rem; top:50%; transform:translateY(-50%);
+  background:none; border:none; color:#94a3b8; cursor:pointer; padding:4px;
+}
+.eye-btn:hover { color:#475569; }
+.info-box {
+  background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px;
+  padding:.9rem 1rem; font-size:.83rem; color:#0369a1; margin-top:.5rem;
+}
+.info-box a { color:#0369a1; }
+.slot { border-left:3px solid #e2e8f0; padding-left:.9rem; margin-bottom:1rem; }
+.slot.filled { border-left-color:#1a73e8; }
+.slot-head { display:flex; align-items:center; gap:.5rem; margin-bottom:.35rem; }
+.slot-head .n { font-size:.82rem; font-weight:600; color:#0f172a; }
+.slot-head .role { font-size:.72rem; color:#64748b; }
+table.keys { width:100%; font-size:.8rem; border-collapse:collapse; margin-top:.6rem; }
+table.keys th { text-align:left; font-size:.7rem; text-transform:uppercase;
+  letter-spacing:.5px; color:#64748b; border-bottom:1px solid #e2e8f0; padding:.4rem .5rem; }
+table.keys td { padding:.4rem .5rem; border-bottom:1px solid #f1f5f9; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3" style="max-width:760px;">
+
+  <!-- Status banner -->
+  <div class="col-12">
+    <div class="key-card d-flex align-items-center gap-3" style="padding:1rem 1.4rem;">
+      <div style="font-size:1.8rem;">🤖</div>
+      <div class="flex-grow-1">
+        <div class="fw-600 text-dark">AI generation status</div>
+        <div class="text-muted" style="font-size:.82rem;">
+          Currently using: <strong>{{ status.labels[status.active] }}</strong>
+          {% if status.n_keys %} · {{ status.n_keys }} key{{ '' if status.n_keys == 1 else 's' }} configured{% endif %}
+          {% if status.last_used %}
+            · last narrative written by <strong>{{ status.labels.get(status.last_used, status.last_used) }}</strong>
+          {% endif %}
+        </div>
+      </div>
+      {% if status.active == 'template' %}
+        <span class="status-pill inactive"><span class="dot"></span> Offline template</span>
+      {% else %}
+        <span class="status-pill active"><span class="dot"></span> Gemini active</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Why one provider -->
+  <div class="col-12">
+    <div class="key-card" style="background:#f8fafc;padding:1.1rem 1.4rem;">
+      <div class="fw-semibold mb-1" style="font-size:.9rem;">
+        <i class="bi bi-info-circle-fill me-1 text-primary"></i> One model, several keys
+      </div>
+      <div style="font-size:.83rem;color:#475569;line-height:1.65;">
+        This system talks to Gemini and nothing else. An earlier version could also call Claude
+        or Groq and fell through from one to the next when a call failed, which was convenient
+        and wrong: a care note would record that a model wrote the text without recording
+        <em>which</em> model, and an evaluation run could be served by two different model
+        families because one free tier hit its daily quota partway through.
+        <br><br>
+        Several keys are still supported, and that is a different thing. Every key reaches the
+        same models, so rotating between them changes whether the system can answer, never what
+        it answers.
+      </div>
+    </div>
+  </div>
+
+  <!-- Key form -->
+  <div class="col-12">
+    <form method="POST">
+
+      <div class="key-card">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="provider-logo" style="background:linear-gradient(135deg,#4285f4,#1a73e8);">G</div>
+          <div>
+            <div class="fw-semibold">Gemini API keys <span style="font-size:.72rem;color:#64748b;">(Google AI Studio)</span></div>
+            <div style="font-size:.78rem;color:#64748b;">Model in use: {{ status.gemini_model }} · discovered per key</div>
+          </div>
+          {% if gemini_keys %}
+          <span class="status-pill active ms-auto"><span class="dot"></span>
+            {{ gemini_keys|length }} saved</span>
+          {% else %}
+          <span class="status-pill inactive ms-auto"><span class="dot"></span> None set</span>
+          {% endif %}
+        </div>
+
+        <div style="font-size:.8rem;color:#64748b;" class="mb-3">
+          Up to {{ max_gemini_keys }} keys, tried in the order below. When one hits its free-tier
+          quota (HTTP 429) the next takes over and the exhausted key is retried after a short
+          cooldown. Leave a slot blank if you do not need it; to remove a key, clear its box and save.
+        </div>
+
+        {% for i in range(max_gemini_keys) %}
+        {% set existing = gemini_keys[i] if gemini_keys|length > i else '' %}
+        <div class="slot {% if existing %}filled{% endif %}">
+          <div class="slot-head">
+            <span class="n">Key {{ i + 1 }}</span>
+            <span class="role">
+              {% if i == 0 %}tried first{% else %}used when key {{ i }} is out of quota{% endif %}
+            </span>
+            {% if existing %}
+            <span class="status-pill active ms-auto" style="font-size:.65rem;"><span class="dot"></span> saved</span>
+            {% endif %}
+          </div>
+          <div class="key-input-wrap">
+            <input type="password" class="form-control" name="gemini_key_{{ i + 1 }}"
+              id="gem_key_{{ i + 1 }}" placeholder="AIza…"
+              value="{{ mask_key(existing) if existing else '' }}"
+              autocomplete="off">
+            <button type="button" class="eye-btn" onclick="toggleVis('gem_key_{{ i + 1 }}',this)">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+        {% endfor %}
+
+        <div class="info-box">
+          <i class="bi bi-key-fill me-1"></i>
+          Get free keys at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>
+          → Create API Key. Each starts with <code>AIza</code> and no card is needed.
+          <strong>Create each key in a different Google Cloud project.</strong> Keys inside one
+          project share a single quota, so four keys from one project multiply nothing; four keys
+          from four projects genuinely quadruple the allowance. Model names are discovered per key,
+          so a name Google retires never breaks the app.
+        </div>
+      </div>
+
+      <!-- Generation mode -->
+      <div class="key-card">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="provider-logo" style="background:linear-gradient(135deg,#0f766e,#0d9488);">
+            <i class="bi bi-sliders" style="font-size:1rem;"></i>
+          </div>
+          <div>
+            <div class="fw-semibold">Generation mode</div>
+            <div style="font-size:.78rem;color:#64748b;">What the narrative fields should do</div>
+          </div>
+        </div>
+        <select name="provider" class="form-select">
+          <option value="auto" {% if provider != 'template' %}selected{% endif %}>
+            Use Gemini, falling back to the offline template (normal)
+          </option>
+          <option value="template" {% if provider == 'template' %}selected{% endif %}>
+            Offline template only — never call the API
+          </option>
+        </select>
+        <div class="info-box">
+          <i class="bi bi-clipboard-data me-1"></i>
+          <strong>Offline template</strong> is not a broken state, it is a measurable one. It pins
+          the system to its deterministic path so you can establish what the output looks like with
+          no model involved at all — which is the control arm the retrieval evaluation compares
+          against. It is also what every screen falls back to if no key answers, so the record is
+          always complete even when the API is not.
+        </div>
+      </div>
+
+      <!-- Live key report -->
+      {% if key_report %}
+      <div class="key-card">
+        <div class="fw-semibold mb-1" style="font-size:.9rem;">
+          <i class="bi bi-activity me-1 text-primary"></i> Key state this session
+        </div>
+        <div style="font-size:.8rem;color:#64748b;">
+          Reset when the app restarts or when you save new keys.
+        </div>
+        <table class="keys">
+          <thead><tr><th>Key</th><th>State</th><th>Detail</th></tr></thead>
+          <tbody>
+            {% for k in key_report %}
+            <tr>
+              <td><code>{{ k.id }}</code></td>
+              <td>
+                {% if k.usable %}<span class="status-pill active"><span class="dot"></span> usable</span>
+                {% elif k.cooling_down %}<span class="status-pill cooling"><span class="dot"></span> cooling down</span>
+                {% else %}<span class="status-pill dead"><span class="dot"></span> rejected</span>{% endif %}
+              </td>
+              <td class="text-muted">{{ k.note or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      <!-- Current state -->
+      <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:.8rem 1rem;font-size:.82rem;color:#854d0e;margin-bottom:1.2rem;">
+        <i class="bi bi-lightning-charge-fill me-1"></i>
+        <strong>Right now this app will use: {{ status.labels[status.active] }}</strong><br>
+        Keys can also be set as environment variables in <code>run.bat</code> —
+        <code>GEMINI_API_KEYS</code> for a comma-separated list, or <code>GEMINI_API_KEY</code>
+        for a single key. Both routes work, and a key set in <code>run.bat</code> takes precedence
+        at startup.
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" name="action" value="save" class="btn btn-primary px-4">
+          <i class="bi bi-floppy-fill me-1"></i> Save keys
+        </button>
+        <button type="submit" name="action" value="clear"
+          class="btn btn-outline-danger"
+          onclick="return confirm('Clear all Gemini keys? Every narrative field will fall back to the offline template.')">
+          <i class="bi bi-trash me-1"></i> Clear all keys
+        </button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary ms-auto">
+          <i class="bi bi-arrow-left me-1"></i> Back to dashboard
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <!-- How it works -->
+  <div class="col-12">
+    <div class="key-card" style="background:#f8fafc;">
+      <h6 class="fw-semibold mb-3"><i class="bi bi-question-circle-fill me-2 text-primary"></i>How AI generation works here</h6>
+      <div style="font-size:.85rem;color:#475569;line-height:1.7;">
+        A model is used in exactly three places: drafting the free-text narrative on the care note,
+        incident, handover, wellbeing and care plan forms; answering questions in
+        <em>Ask the Records</em>; and nothing else. The fall-risk model is a scikit-learn
+        classifier trained locally and never calls an API. The medication administration record is
+        a verbatim audit trail with no model in its path.
+        <br><br>
+        Keys are stored in <code>ai_config.json</code> in the app folder and applied immediately —
+        <strong>no restart required</strong>. They are sent to Google and to nobody else.
+        <br><br>
+        <strong>Without a key</strong> the app still works. Every narrative field falls back to a
+        deterministic template, which is plainer prose and a complete record.
+        <br><br>
+        <strong>Governance:</strong> every AI-generated record is flagged
+        <code>ai_generated = True</code> and enters as <em>pending approval</em>. A named human
+        must approve it before it becomes part of the clinical record. The model drafts; the
+        registered professional remains the author.
+        <br><br>
+        <span style="color:#b45309;"><i class="bi bi-shield-exclamation me-1"></i>
+        <strong>This system uses synthetic data only.</strong> Do not enter real resident
+        information. Free API tiers may retain and train on submitted data, which would be an
+        unlawful processing of health data under UK GDPR Article 9 — and the multi-key rotation
+        above exists precisely to stay inside those free tiers.</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleVis(id, btn) {
+  const inp = document.getElementById(id);
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.innerHTML = '<i class="bi bi-eye-slash"></i>';
+  } else {
+    inp.type = 'password';
+    btn.innerHTML = '<i class="bi bi-eye"></i>';
+  }
+}
+
+// A masked field clears on focus so a new key can be typed straight in. Leaving
+// the mask in place and saving keeps the existing key, which is what makes it
+// safe to re-save this form without retyping everything.
+document.querySelectorAll('input[type=password]').forEach(inp => {
+  inp.addEventListener('focus', function () {
+    if (this.value && (this.value.includes('...') || this.value.includes('…'))) {
+      this.dataset.mask = this.value;
+      this.value = '';
+    }
+  });
+  inp.addEventListener('blur', function () {
+    if (!this.value && this.dataset.mask) this.value = this.dataset.mask;
+  });
+});
+</script>
+{% endblock %}

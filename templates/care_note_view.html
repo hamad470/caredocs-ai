@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Care Note — {{ r.preferred_name }}{% endblock %}
+{% block page_title %}Care Note — {{ r.preferred_name }} — {{ note.date }}{% endblock %}
+
+{% block content %}
+<div class="d-flex gap-2 mb-3">
+  <a href="{{ url_for('resident_detail', resident_id=r.resident_id) }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Back to Record
+  </a>
+  <a href="{{ url_for('care_note_pdf', note_id=note.id) }}" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-file-pdf"></i> Export PDF
+  </a>
+  {% if note.status == 'pending_approval' and session.get('role') in ('manager','senior_carer') %}
+  <form method="post" action="{{ url_for('care_note_approve', note_id=note.id) }}" style="display:inline;">
+    <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check-circle"></i> Approve Note</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="form-section">
+      <h5>Resident</h5>
+      <table class="table table-sm table-borderless mb-0" style="font-size:.85rem;">
+        <tr><td class="text-muted">Name</td><td><strong>{{ r.full_name }}</strong></td></tr>
+        <tr><td class="text-muted">Room</td><td>{{ r.room_number }}</td></tr>
+        <tr><td class="text-muted">DOB</td><td>{{ r.date_of_birth }}</td></tr>
+        <tr><td class="text-muted">Diagnosis</td><td>{{ r.primary_diagnosis }}</td></tr>
+        <tr><td class="text-muted">DNACPR</td><td>{{ r.dnacpr_status }}</td></tr>
+      </table>
+    </div>
+    <div class="form-section">
+      <h5>Shift Info</h5>
+      <table class="table table-sm table-borderless mb-0" style="font-size:.85rem;">
+        <tr><td class="text-muted">Date</td><td>{{ note.date }}</td></tr>
+        <tr><td class="text-muted">Shift</td><td>{{ note.shift }}</td></tr>
+        <tr><td class="text-muted">Staff</td><td>{{ note.staff_name }}</td></tr>
+        <tr><td class="text-muted">Role</td><td>{{ note.staff_role }}</td></tr>
+        <tr><td class="text-muted">Status</td><td>
+          <span class="badge badge-{{ note.status | replace('pending_approval','pending') }}">
+            {{ note.status | replace('_',' ') | title }}
+          </span>
+        </td></tr>
+        {% if note.approved_by %}
+        <tr><td class="text-muted">Approved by</td><td>{{ note.approved_by }}</td></tr>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="form-section">
+      <h5>Observations</h5>
+      <table class="table table-sm table-borderless mb-0" style="font-size:.85rem;">
+        <tr><td class="text-muted">Personal Care</td><td>{{ note.personal_care }}</td></tr>
+        <tr><td class="text-muted">Mood</td><td>{{ note.mood }}</td></tr>
+        <tr><td class="text-muted">Appetite</td><td>{{ note.appetite }}</td></tr>
+        <tr><td class="text-muted">Fluid Intake</td><td>{{ note.fluid_intake_ml }} ml</td></tr>
+        <tr><td class="text-muted">Weight</td><td>{{ note.weight_kg or '—' }} kg</td></tr>
+        <tr><td class="text-muted">Skin Checked</td><td>{{ note.skin_checked }}</td></tr>
+        <tr><td class="text-muted">Skin Concern</td><td>{{ note.skin_concern or 'None' }}</td></tr>
+        <tr><td class="text-muted">Repositioned</td><td>{{ note.repositioned }}</td></tr>
+        <tr><td class="text-muted">Sleep Quality</td><td>{{ note.sleep_quality }}</td></tr>
+        <tr><td class="text-muted">Pain</td><td>{{ note.pain_observed }} {% if note.pain_location %}({{ note.pain_location }}){% endif %}</td></tr>
+        <tr><td class="text-muted">Falls</td><td>{{ note.falls_this_shift }}</td></tr>
+        <tr><td class="text-muted">Activity</td><td>{{ note.activity_description or '—' }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="form-section">
+      <h5>Narratives {% if note.ai_generated %}<span class="ai-badge ms-1"><i class="bi bi-stars"></i> AI Generated</span>{% endif %}</h5>
+      {% if note.care_narrative %}
+      <div class="mb-2">
+        <div class="text-muted" style="font-size:.75rem;font-weight:600;text-transform:uppercase;">Care Narrative</div>
+        <div class="narrative-box">{{ note.care_narrative }}</div>
+      </div>
+      {% endif %}
+      {% if note.concerns %}
+      <div class="mb-2">
+        <div class="text-muted" style="font-size:.75rem;font-weight:600;text-transform:uppercase;">Concerns</div>
+        <div class="narrative-box text-danger">{{ note.concerns }}</div>
+      </div>
+      {% endif %}
+      {% if note.actions_taken %}
+      <div class="mb-2">
+        <div class="text-muted" style="font-size:.75rem;font-weight:600;text-transform:uppercase;">Actions Taken</div>
+        <div class="narrative-box">{{ note.actions_taken }}</div>
+      </div>
+      {% endif %}
+      {% if note.handover_notes %}
+      <div class="mb-2">
+        <div class="text-muted" style="font-size:.75rem;font-weight:600;text-transform:uppercase;">Handover Notes</div>
+        <div class="narrative-box">{{ note.handover_notes }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

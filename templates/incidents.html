@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Incidents{% endblock %}
+{% block page_title %}<i class="bi bi-exclamation-triangle-fill text-danger"></i> Incidents{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <span class="text-muted" style="font-size:.85rem;">{{ incidents|length }} incident(s) recorded</span>
+  <a href="{{ url_for('incident_new') }}" class="btn btn-danger btn-sm">
+    <i class="bi bi-plus-circle"></i> Report Incident
+  </a>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover shadow-sm" style="background:#fff;border-radius:8px;overflow:hidden;">
+    <thead style="background:#1e3a5f;color:#fff;font-size:.8rem;">
+      <tr>
+        <th>ID</th><th>Date</th><th>Resident</th><th>Type</th>
+        <th>Severity</th><th>Location</th><th>Status</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody style="font-size:.83rem;">
+      {% for inc in incidents %}
+      <tr>
+        <td><code>{{ inc.incident_id }}</code></td>
+        <td>{{ inc.date }}</td>
+        <td>
+          <strong>{{ inc.preferred_name }}</strong>
+          <div class="text-muted" style="font-size:.72rem;">Rm {{ inc.room_number }}</div>
+        </td>
+        <td>{{ inc.incident_type }}</td>
+        <td>
+          <span class="badge bg-{{ 'danger' if inc.severity in ('Major','Critical') else ('warning text-dark' if inc.severity=='Moderate' else 'secondary') }}">
+            {{ inc.severity }}
+          </span>
+        </td>
+        <td>{{ inc.location }}</td>
+        <td>
+          <span class="badge badge-{{ inc.status }}">{{ inc.status | title }}</span>
+        </td>
+        <td>
+          <div class="d-flex gap-1">
+            <a href="{{ url_for('incident_view', inc_id=inc.id) }}" class="btn btn-xs btn-outline-primary" style="padding:2px 8px;font-size:.75rem;">View</a>
+            <a href="{{ url_for('incident_pdf', inc_id=inc.id) }}" class="btn btn-xs btn-outline-secondary" style="padding:2px 8px;font-size:.75rem;"><i class="bi bi-file-pdf"></i></a>
+            {% if inc.status == 'open' and session.get('role') in ('manager','senior_carer') %}
+            <form method="post" action="{{ url_for('incident_close', inc_id=inc.id) }}">
+              <button type="submit" class="btn btn-xs btn-success" style="padding:2px 8px;font-size:.75rem;">Close</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">No incidents recorded.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

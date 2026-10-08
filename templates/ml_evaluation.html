@@ -1,0 +1,885 @@
+{% extends "base.html" %}
+{% block title %}Fall Risk — Model Evaluation{% endblock %}
+{% block page_title %}Fall Risk Model — How it was built, tested and chosen{% endblock %}
+
+{% block extra_css %}
+<style>
+.viz-root{
+  --surface-1:#ffffff; --surface-2:#f8fafc;
+  --ink-1:#0f172a; --ink-2:#475569; --ink-3:#94a3b8;
+  --rule:#e2e8f0;
+  --series-1:#2a78d6;   /* blue   */
+  --series-2:#eb6834;   /* orange */
+  --series-3:#1baf7a;   /* aqua   */
+  --good:#15803d; --warn:#a16207; --bad:#b91c1c;
+}
+.act{margin-bottom:2.25rem;}
+.act-head{display:flex;gap:.75rem;align-items:baseline;margin-bottom:.5rem;}
+.act-num{font-size:.68rem;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--ink-3);white-space:nowrap;padding-top:.25rem;}
+.act-q{font-size:1.12rem;font-weight:650;color:var(--brand);margin:0;line-height:1.35;}
+.act-lede{font-size:.9rem;color:var(--ink-2);max-width:74ch;line-height:1.65;margin:.4rem 0 1rem;}
+.panel{background:var(--surface-1);border:1px solid var(--rule);border-radius:12px;padding:1.25rem 1.4rem;}
+.panel + .panel{margin-top:1rem;}
+.panel h6{font-size:.9rem;font-weight:640;color:var(--ink-1);margin:0 0 .15rem;}
+.panel .cap{font-size:.78rem;color:var(--ink-2);margin:0 0 1rem;line-height:1.55;}
+.chart-wrap{position:relative;height:300px;}
+.chart-wrap.tall{height:380px;}
+.chart-wrap.short{height:230px;}
+.finding{border-left:3px solid var(--series-1);background:#f1f6fd;border-radius:0 8px 8px 0;
+  padding:.7rem .95rem;font-size:.84rem;color:#14406f;line-height:1.6;margin-top:1rem;}
+.finding strong{color:#0d2d51;}
+.caveat{border-left:3px solid #d97706;background:#fffbeb;border-radius:0 8px 8px 0;
+  padding:.7rem .95rem;font-size:.84rem;color:#78350f;line-height:1.6;margin-top:1rem;}
+.hero{display:flex;flex-wrap:wrap;gap:2rem;align-items:flex-start;}
+.hero-num{font-size:2.6rem;font-weight:700;color:var(--brand);line-height:1;letter-spacing:-1px;}
+.hero-sub{font-size:.76rem;color:var(--ink-2);margin-top:.3rem;max-width:22ch;line-height:1.45;}
+table.dv{width:100%;font-size:.8rem;border-collapse:collapse;}
+table.dv th{text-align:left;font-weight:600;color:var(--ink-2);font-size:.72rem;
+  text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--rule);padding:.45rem .6rem;}
+table.dv td{padding:.45rem .6rem;border-bottom:1px solid #f1f5f9;color:var(--ink-1);}
+table.dv tr.sel td{background:#f1f6fd;font-weight:600;}
+table.dv td.num,table.dv th.num{text-align:right;font-variant-numeric:tabular-nums;}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:.4rem;vertical-align:-1px;}
+details.tech{margin-top:1rem;border-top:1px solid var(--rule);padding-top:.7rem;}
+details.tech summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--ink-2);}
+details.tech .body{font-size:.8rem;color:var(--ink-2);line-height:1.65;margin-top:.7rem;}
+.mc-k{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);}
+.mc-v{display:block;color:var(--ink-1);font-weight:500;font-size:.82rem;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="viz-root">
+
+<div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <a href="{{ url_for('risk_ranking') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i> Today's risk ranking
+  </a>
+  {% if session.get('role') == 'manager' %}
+  <form method="POST" action="{{ url_for('ml_retrain') }}"
+        onsubmit="return confirm('Refit the fall-risk model and overwrite the saved artefact? This replaces the model currently producing live risk scores.');">
+    <button type="submit" class="btn btn-sm btn-outline-warning">
+      <i class="bi bi-arrow-repeat me-1"></i> Refit and save
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+{% if results.get('error') %}
+<div class="alert alert-warning">{{ results.error }}</div>
+{% else %}
+
+{% set ds  = results.dataset %}
+{% set lr  = results.logistic_regression_loso %}
+{% set rf  = results.random_forest_loso %}
+{% set gb  = results.gradient_boosting_loso %}
+{% set maj = results.baseline_majority %}
+{% set sta = results.baseline_static_risk_score %}
+{% set unc = results.auc_uncertainty %}
+{% set op  = results.operating_point %}
+
+<!-- ══ OPENING ══════════════════════════════════════════════════════════ -->
+<div class="panel mb-4">
+  <div class="hero">
+    <div>
+      <div class="hero-num">{{ unc.loso_roc_auc if unc else lr.roc_auc }}</div>
+      <div class="hero-sub">ROC-AUC on residents the model has never seen{% if unc %},
+        95&nbsp;% CI {{ unc.ci95_cluster_bootstrap.lo }}–{{ unc.ci95_cluster_bootstrap.hi }}{% endif %}</div>
+    </div>
+    <div>
+      <div class="hero-num">{{ (op.recall * 100) | round | int if op else '—' }}%</div>
+      <div class="hero-sub">of falls flagged at the deployed alert threshold of {{ op.threshold if op }}</div>
+    </div>
+    <div>
+      <div class="hero-num">{{ op.alerts_per_week_across_home if op else '—' }}</div>
+      <div class="hero-sub">alerts a week across a {{ ds.n_residents }}-resident home &mdash; the cost of that recall</div>
+    </div>
+    <div style="flex:1;min-width:280px;">
+      <p style="font-size:.86rem;color:var(--ink-2);line-height:1.65;margin:0;">
+        This page is the argument for the model on the <em>Fall Risk Ranking</em> screen, laid out in the
+        order the questions actually arise. It reads the saved artefact rather than refitting anything,
+        so what you see below describes the model that is producing live scores right now.
+      </p>
+      <p style="font-size:.86rem;color:var(--ink-2);line-height:1.65;margin:.6rem 0 0;">
+        <strong>Everything here is measured on synthetic data.</strong> The cohort was simulated from
+        equations this project wrote, so the results show that the pipeline recovers a signal that was
+        put there deliberately. That is internal validity. It is not evidence about falls in real care homes.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ACT 1 ════════════════════════════════════════════════════════════ -->
+<section class="act">
+  <div class="act-head">
+    <span class="act-num">Act 1</span>
+    <h2 class="act-q">Why is accuracy the wrong thing to ask about?</h2>
+  </div>
+  <p class="act-lede">
+    Falls are rare. Across {{ "{:,}".format(ds.n_samples) }} resident-weeks there were
+    {{ ds.n_positive }} in which a fall followed &mdash; {{ (ds.positive_rate * 100) | round(1) }}&nbsp;% of them.
+    A model that refuses to predict anything, and answers &ldquo;no fall&rdquo; every time for every resident,
+    is therefore correct {{ (maj.accuracy * 100) | round(1) }}&nbsp;% of the time while catching none of the falls.
+    Any accuracy figure quoted for this problem has to be read against that number, which is why it is not
+    the number this page leads on.
+  </p>
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="panel">
+        <h6>What a high accuracy can hide</h6>
+        <p class="cap">Four ways of setting the same model's alert threshold, plus the do-nothing predictor.
+           Accuracy climbs as the threshold rises, purely by predicting the majority class more often.</p>
+        <div class="chart-wrap"><canvas id="chAccuracyTrap"></canvas></div>
+        <div class="finding">
+          <strong>The trap.</strong> At a threshold of 0.5 the model reaches
+          {{ (results.operating_points.accuracy_matched_to_majority_baseline.accuracy * 100) | round(1) }}&nbsp;% accuracy &mdash;
+          fractionally above the do-nothing predictor &mdash; and finds
+          {{ (results.operating_points.accuracy_matched_to_majority_baseline.recall * 100) | round(1) }}&nbsp;% of falls.
+          Reporting that accuracy without the recall beside it would be true and useless.
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="panel h-100">
+        <h6>The dataset under test</h6>
+        <p class="cap">A 14-day observation window slides across each resident's record in 7-day steps.
+           Each window becomes one row; the label is whether a fall followed in the next 7 days.</p>
+        <table class="dv">
+          <tbody>
+            <tr><td>Residents</td><td class="num">{{ ds.n_residents }}</td></tr>
+            <tr><td>Labelled windows</td><td class="num">{{ "{:,}".format(ds.n_samples) }}</td></tr>
+            <tr><td>Windows followed by a fall</td><td class="num">{{ ds.n_positive }}</td></tr>
+            <tr><td>Base rate</td><td class="num">{{ (ds.positive_rate * 100) | round(2) }}%</td></tr>
+            <tr><td>Features</td><td class="num">{{ ds.n_features }}</td></tr>
+            <tr><td>Events per variable</td><td class="num">{{ ds.events_per_variable }}</td></tr>
+          </tbody>
+        </table>
+        <div class="caveat">
+          Events per variable is {{ ds.events_per_variable }}, against a conventional minimum of ten for a
+          logistic model. It is close but under, and that is one reason the regularisation is set as heavily
+          as it is and why the confidence interval on the headline figure is reported rather than suppressed.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ ACT 2 ════════════════════════════════════════════════════════════ -->
+<section class="act">
+  <div class="act-head">
+    <span class="act-num">Act 2</span>
+    <h2 class="act-q">Does it beat the paperwork the home already fills in?</h2>
+  </div>
+  <p class="act-lede">
+    &ldquo;Better than chance&rdquo; is a low bar and not the one that matters. Every home already records a
+    falls-risk assessment score on paper, so the honest comparison is against that. Both baselines are shown
+    below: the do-nothing predictor, and the existing paper score used directly as a ranking.
+  </p>
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="panel">
+        <h6>Ranking quality, unseen residents only</h6>
+        <p class="cap">ROC-AUC is the chance that a randomly chosen resident-week that ended in a fall was
+           ranked above one that did not. Average precision is the harder measure on rare events &mdash;
+           chance level is the base rate of {{ (ds.positive_rate * 100) | round(1) }}&nbsp;%, not 0.5.</p>
+        <div class="chart-wrap tall"><canvas id="chModels"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="panel h-100">
+        <h6>The same numbers, written down</h6>
+        <p class="cap">All figures are leave-one-subject-out: each resident is scored by a model
+           fitted without them.</p>
+        <table class="dv">
+          <thead><tr><th>Model</th><th class="num">AUC</th><th class="num">AP</th><th class="num">Recall</th></tr></thead>
+          <tbody>
+            <tr class="sel"><td><span class="swatch" style="background:var(--series-1)"></span>Logistic regression</td>
+                <td class="num">{{ lr.roc_auc }}</td><td class="num">{{ lr.average_precision }}</td><td class="num">{{ lr.recall }}</td></tr>
+            <tr><td><span class="swatch" style="background:var(--series-2)"></span>Random forest</td>
+                <td class="num">{{ rf.roc_auc }}</td><td class="num">{{ rf.average_precision }}</td><td class="num">{{ rf.recall }}</td></tr>
+            <tr><td><span class="swatch" style="background:var(--series-3)"></span>Gradient boosting</td>
+                <td class="num">{{ gb.roc_auc }}</td><td class="num">{{ gb.average_precision }}</td><td class="num">{{ gb.recall }}</td></tr>
+            <tr><td class="text-muted">Existing paper risk score</td>
+                <td class="num text-muted">{{ sta.roc_auc }}</td><td class="num text-muted">{{ sta.average_precision }}</td><td class="num text-muted">{{ sta.recall }}</td></tr>
+            <tr><td class="text-muted">Predict &ldquo;no fall&rdquo; always</td>
+                <td class="num text-muted">{{ maj.roc_auc }}</td><td class="num text-muted">{{ (ds.positive_rate) | round(3) }}</td><td class="num text-muted">0.000</td></tr>
+          </tbody>
+        </table>
+        <div class="finding">
+          <strong>Selected: logistic regression.</strong> {{ results.model_selection.note }}
+          The margin over the paper score is
+          {{ ((lr.roc_auc - sta.roc_auc) * 1000) | round | int / 1000 }} AUC &mdash; real, but modest enough
+          that it should be stated as a margin rather than as a transformation.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ ACT 3 ════════════════════════════════════════════════════════════ -->
+<section class="act">
+  <div class="act-head">
+    <span class="act-num">Act 3</span>
+    <h2 class="act-q">How much of the score is the model cheating?</h2>
+  </div>
+  <p class="act-lede">
+    Consecutive 14-day windows from the same resident overlap and look alike. Shuffle rows at random into
+    cross-validation folds and the model gets to learn what is normal for Mrs Brown, then is tested on
+    Mrs Brown &mdash; and rewarded for the memorising. Splitting on residents instead removes that reward.
+    Running both and reporting the difference turns the leak into a measurement.
+  </p>
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="panel">
+        <h6>Three ways of splitting the same data</h6>
+        <p class="cap">Left to right, each split is stricter than the last. The distance between the first
+           and last bar for a given model is that model's optimism gap.</p>
+        <div class="chart-wrap"><canvas id="chLeakage"></canvas></div>
+        <div class="finding">
+          <strong>Gap: {{ results.leakage_analysis.optimism_gap_rowshuffle_minus_loso }} AUC.</strong>
+          {{ results.leakage_analysis.note }}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="panel h-100">
+        <h6>Why this is worth a section</h6>
+        <p class="cap" style="margin-bottom:.8rem;">
+          A published fall-risk model that reported the row-shuffled figure alone would be reporting
+          {{ results.leakage_analysis.row_shuffled_5fold_auc }} rather than
+          {{ results.leakage_analysis.loso_auc }} &mdash; a difference this cohort happens to make small.
+        </p>
+        <p class="cap" style="margin-bottom:.8rem;">
+          It is small <em>because there are fifty residents</em>. With fifty subjects, removing one barely
+          changes the training set, so there is little resident-specific knowledge left to exploit.
+          Act&nbsp;4 shows what happens when there are five.
+        </p>
+        <details class="tech">
+          <summary>Splitting schemes in full</summary>
+          <div class="body">
+            {% for scheme in ds.cv_schemes %}<div>&bull; {{ scheme }}</div>{% endfor %}
+            <div class="mt-2">Selection criterion: {{ results.model_selection.criterion }}. The rule was
+              fixed before any figures were seen, so the choice of estimator is not itself a form of
+              overfitting to the test.</div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ ACT 4 ════════════════════════════════════════════════════════════ -->
+{% if learning_curve %}
+<section class="act">
+  <div class="act-head">
+    <span class="act-num">Act 4</span>
+    <h2 class="act-q">What did more residents actually buy?</h2>
+  </div>
+  <p class="act-lede">
+    The whole evaluation was re-run on cohorts of {{ learning_curve.cohort_sizes | join(', ') }} residents,
+    drawn without replacement from the full {{ learning_curve.total_residents }} and repeated over
+    {{ learning_curve.draws_per_size }} independent draws at each size. Every draw got the full treatment:
+    leave-one-subject-out, resident-grouped folds and row-shuffled folds. The shaded band is the spread
+    between draws, so it shows how much the answer depends on <em>which</em> residents you happen to have.
+  </p>
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="panel">
+        <h6>Performance against cohort size</h6>
+        <p class="cap">Mean leave-one-subject-out ROC-AUC, with the range across draws shaded.</p>
+        <div class="chart-wrap" style="height:560px;"><canvas id="chCurve"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="panel">
+        <h6>How much the answer wobbles</h6>
+        <p class="cap">Standard deviation of that AUC across draws at each cohort size. Lower is a more
+           trustworthy number, not a better model.</p>
+        <div class="chart-wrap short"><canvas id="chCurveSd"></canvas></div>
+      </div>
+      <div class="panel">
+        <h6>The optimism gap, shrinking</h6>
+        <p class="cap">Row-shuffled AUC minus leave-one-subject-out AUC. Zero means the two ways of
+           splitting agree, which is what you want.</p>
+        <div class="chart-wrap short"><canvas id="chCurveGap"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <h6>Cohort-size results in full</h6>
+    <div class="table-responsive">
+      <table class="dv">
+        <thead>
+          <tr>
+            <th>Residents</th><th class="num">Windows</th><th class="num">Falls</th><th class="num">EPV</th>
+            <th class="num">LOSO AUC</th><th class="num">Spread (SD)</th>
+            <th class="num">Worst draw</th><th class="num">Optimism gap</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pt in learning_curve.curve %}
+          {% set m = pt.logistic_regression %}
+          <tr {% if pt.single_draw %}class="sel"{% endif %}>
+            <td>{{ pt.n_residents }}{% if pt.single_draw %} <span class="text-muted">(full cohort)</span>{% endif %}</td>
+            <td class="num">{{ pt.mean_windows | round | int }}</td>
+            <td class="num">{{ pt.mean_positive | round(1) }}</td>
+            <td class="num">{{ pt.mean_events_per_variable }}</td>
+            <td class="num">{{ m.loso_auc.mean }}</td>
+            <td class="num">{% if pt.single_draw %}&mdash;{% else %}{{ m.loso_auc.sd }}{% endif %}</td>
+            <td class="num">{% if pt.single_draw %}&mdash;{% else %}{{ m.loso_auc.min }}{% endif %}</td>
+            <td class="num">{{ m.optimism_gap.mean }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="finding" id="curveFinding"></div>
+    <div class="caveat">{{ learning_curve.caveat }}</div>
+    <details class="tech">
+      <summary>Method</summary>
+      <div class="body">{{ learning_curve.method }}
+        Seed {{ learning_curve.seed }}; {{ learning_curve.n_features }} features;
+        produced by <code>experiments/learning_curve.py</code> in
+        {{ learning_curve.runtime_seconds }}&nbsp;s. The full-cohort point admits only one draw, so it
+        has no spread by construction and is marked as such.</div>
+    </details>
+  </div>
+</section>
+{% endif %}
+
+<!-- ══ ACT 5 ════════════════════════════════════════════════════════════ -->
+<section class="act">
+  <div class="act-head">
+    <span class="act-num">Act 5</span>
+    <h2 class="act-q">Where should the alert threshold sit?</h2>
+  </div>
+  <p class="act-lede">
+    A ranking becomes a decision only when someone picks the line above which staff are told to act.
+    Move it down and more falls are caught at the cost of more checks; move it up and the rota is quieter
+    while more falls go unflagged. The threshold was chosen by maximising F2 on out-of-fold predictions
+    &mdash; F2 weights recall four times as heavily as precision, because a missed fall costs an injury
+    and a false alert costs a five-minute check. The asymmetry is a stated parameter, not a hidden default.
+  </p>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="panel">
+        <h6>What each threshold catches</h6>
+        <p class="cap">Recall, precision and specificity across the sweep. The dashed line marks the
+           deployed threshold of {{ op.threshold }}.</p>
+        <div class="chart-wrap"><canvas id="chSweep"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="panel">
+        <h6>What each threshold costs</h6>
+        <p class="cap">Alerts raised per week across the whole home. This is the number a manager
+           negotiates over, and it is on its own chart because it is not on a 0&ndash;1 scale.</p>
+        <div class="chart-wrap"><canvas id="chAlerts"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <h6>Four candidate operating points</h6>
+    <div class="table-responsive">
+      <table class="dv">
+        <thead><tr><th>Setting</th><th class="num">Threshold</th><th class="num">Recall</th>
+          <th class="num">Precision</th><th class="num">Accuracy</th><th class="num">Alerts/week</th></tr></thead>
+        <tbody>
+          {% for key, label in [('high_sensitivity','Catch as many as possible'),
+                                ('balanced_f2','Deployed default'),
+                                ('high_precision','Only when fairly sure'),
+                                ('accuracy_matched_to_majority_baseline','Tuned to look accurate')] %}
+          {% set o = results.operating_points[key] %}
+          <tr {% if key == 'balanced_f2' %}class="sel"{% endif %}>
+            <td>{{ label }}</td>
+            <td class="num">{{ o.threshold }}</td>
+            <td class="num">{{ (o.recall * 100) | round(1) }}%</td>
+            <td class="num">{{ (o.precision * 100) | round(1) }}%</td>
+            <td class="num">{{ (o.accuracy * 100) | round(1) }}%</td>
+            <td class="num">{{ o.alerts_per_week_across_home }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="finding">
+      <strong>The deployed setting is the second row.</strong> The fourth exists to make one comparison
+      unavoidable: tuned until its accuracy matches the do-nothing predictor, the model finds
+      {{ (results.operating_points.accuracy_matched_to_majority_baseline.recall * 100) | round(1) }}&nbsp;% of
+      falls &mdash; the do-nothing predictor finds none. Two systems can post the same accuracy and be
+      worlds apart in whether they are any use, which is the whole reason a threshold is a decision
+      someone has to own rather than a default someone inherits.
+    </div>
+  </div>
+</section>
+
+<!-- ══ ACT 6 ════════════════════════════════════════════════════════════ -->
+{% if results.calibration %}
+<section class="act">
+  <div class="act-head">
+    <span class="act-num">Act 6</span>
+    <h2 class="act-q">When it says 40&nbsp;%, does 40&nbsp;% of the time a fall follow?</h2>
+  </div>
+  <p class="act-lede">
+    Ranking and probability are different claims. AUC only says the ordering is sensible; it is silent on
+    whether the number printed next to a resident's name means anything. Class weighting, which is needed to
+    get any recall at all on a {{ (ds.positive_rate * 100) | round(1) }}&nbsp;% positive problem, systematically
+    inflates those numbers. An isotonic calibration layer fitted inside the cross-validation corrects them,
+    and the correction is measured rather than assumed.
+  </p>
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="panel">
+        <h6>Predicted risk against what actually happened</h6>
+        <p class="cap">Each point is a bin of predictions. The grey diagonal is perfect agreement:
+           on it, a stated risk of 30&nbsp;% means falls followed in 30&nbsp;% of those weeks.</p>
+        <div class="chart-wrap tall"><canvas id="chCalib"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="panel h-100">
+        <h6>Brier score</h6>
+        <p class="cap">Mean squared error of the probability itself. Lower is better; it penalises
+           confident wrongness in a way AUC cannot.</p>
+        <table class="dv">
+          <tbody>
+            <tr><td>Before calibration</td><td class="num">{{ results.calibration.brier_score_uncalibrated }}</td></tr>
+            <tr class="sel"><td>After calibration, held out</td><td class="num">{{ results.calibration.brier_score }}</td></tr>
+            <tr><td>Improvement</td><td class="num">{{ results.calibration.brier_improvement }}</td></tr>
+          </tbody>
+        </table>
+        <div class="finding">
+          Before calibration the highest bin advertised
+          {{ (results.calibration.bins_uncalibrated[-1].mean_predicted * 100) | round | int }}&nbsp;% risk and
+          delivered {{ (results.calibration.bins_uncalibrated[-1].observed_rate * 100) | round | int }}&nbsp;%.
+          A number on a screen that is wrong by that margin is worse than no number, because staff act on it.
+        </div>
+        <details class="tech">
+          <summary>Method</summary>
+          <div class="body">{{ results.calibration.method }}</div>
+        </details>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- ══ ACT 7 ════════════════════════════════════════════════════════════ -->
+<section class="act">
+  <div class="act-head">
+    <span class="act-num">Act 7</span>
+    <h2 class="act-q">What is it actually looking at &mdash; and why is that the catch?</h2>
+  </div>
+  <p class="act-lede">
+    Each feature is shuffled in turn and the drop in AUC recorded. A feature that matters loses the model
+    a lot when scrambled; one that does not, costs nothing. This is the most useful chart on the page and
+    the most dangerous one, for the reason set out underneath it.
+  </p>
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="panel">
+        <h6>Permutation importance &mdash; {{ results.feature_importance_model.replace('_',' ') }}</h6>
+        <p class="cap">Mean drop in ROC-AUC when the feature is shuffled, averaged over five repeats.</p>
+        <div class="chart-wrap tall"><canvas id="chFeat"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="panel h-100">
+        <h6>The result recovers its own recipe</h6>
+        <p class="cap" style="margin-bottom:.8rem;">
+          The generator couples fall hazard to a latent deterioration state, and drives fluid intake,
+          wellbeing score and medication adherence from that same state. So the ordering above is, to a
+          first approximation, the equations the data was written from, read back out.
+        </p>
+        <div class="caveat" style="margin-top:0;">
+          <strong>This is a pipeline check, not a clinical finding.</strong> It shows that the feature
+          engineering, windowing, causal cut-off and validation code can recover a temporal signal when
+          one is present &mdash; which is worth demonstrating, and is all it demonstrates. Reading it as
+          &ldquo;fluid intake predicts falls&rdquo; would be circular: fluid intake predicts falls here
+          because this project wrote the line of code that made it so.
+        </div>
+        <details class="tech">
+          <summary>Features in the model</summary>
+          <div class="body">{{ ds.feature_names | join(' &middot; ') | safe }}</div>
+        </details>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ ARTEFACT ═════════════════════════════════════════════════════════ -->
+{% if model_status %}
+<div class="panel">
+  <h6>
+    Deployed artefact
+    {% if model_status.available %}
+      {% if model_status.stale %}<span class="badge bg-warning text-dark ms-2">Stale</span>
+      {% else %}<span class="badge bg-success ms-2">Current</span>{% endif %}
+    {% else %}<span class="badge bg-danger ms-2">Not found</span>{% endif %}
+  </h6>
+  <p class="cap">Everything above is read from this file. It is written only by an explicit refit, never
+     by loading a page, so the metrics always describe the model that is making predictions.</p>
+  {% if model_status.available %}
+  <div class="row g-2">
+    <div class="col-md-4"><span class="mc-k">File</span><span class="mc-v">{{ model_status.filename }} ({{ model_status.size_kb }} KB)</span></div>
+    <div class="col-md-4"><span class="mc-k">Estimator</span><span class="mc-v">{{ model_status.model_type }}</span></div>
+    <div class="col-md-4"><span class="mc-k">Artefact version</span><span class="mc-v">v{{ model_status.artefact_version }}</span></div>
+    <div class="col-md-4"><span class="mc-k">Fitted</span><span class="mc-v">{{ model_status.trained_at }}</span></div>
+    <div class="col-md-4"><span class="mc-k">Training rows</span><span class="mc-v">{{ model_status.n_samples }} ({{ model_status.n_positive }} positive, {{ model_status.n_residents }} residents)</span></div>
+    <div class="col-md-4"><span class="mc-k">Data window</span><span class="mc-v">{{ model_status.train_date_range[0] }} &rarr; {{ model_status.train_date_range[1] }}</span></div>
+    <div class="col-md-4"><span class="mc-k">Alert threshold</span><span class="mc-v">{{ model_status.threshold }}</span></div>
+    <div class="col-md-8"><span class="mc-k">Environment</span><span class="mc-v">Python {{ model_status.python_version }} &middot; scikit-learn {{ model_status.sklearn_version }} &middot; numpy {{ model_status.numpy_version }}</span></div>
+  </div>
+  {% if model_status.stale %}
+  <div class="caveat">The database has changed since this model was fitted
+    ({{ model_status.stale_reasons | join('; ') }}). The figures above describe the saved model,
+    not the current data.</div>
+  {% endif %}
+  {% else %}
+  <div class="text-danger" style="font-size:.85rem;">{{ model_status.message }}</div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const R   = {{ j_results | safe }};
+const LC  = {{ j_curve | safe }};
+const C1 = '#2a78d6', C2 = '#eb6834', C3 = '#1baf7a';
+const INK2 = '#475569', INK3 = '#94a3b8', RULE = '#e2e8f0';
+
+if (window.Chart) {
+  Chart.defaults.font.family = "'Segoe UI',system-ui,sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = INK2;
+  Chart.defaults.plugins.legend.labels.boxWidth = 10;
+  Chart.defaults.plugins.legend.labels.boxHeight = 10;
+  Chart.defaults.plugins.legend.labels.usePointStyle = true;
+  Chart.defaults.plugins.legend.labels.padding = 14;
+  Chart.defaults.maintainAspectRatio = false;
+  Chart.defaults.elements.bar.borderRadius = 4;
+  Chart.defaults.elements.line.borderWidth = 2;
+  Chart.defaults.elements.point.radius = 4;
+  Chart.defaults.elements.point.hoverRadius = 7;
+}
+
+const grid  = { color: RULE, drawTicks: false };
+const noGrid = { display: false };
+const pct = v => (v * 100).toFixed(1) + '%';
+const has = id => document.getElementById(id);
+
+/* ── Act 1 — the accuracy trap ─────────────────────────────────────────── */
+if (has('chAccuracyTrap')) {
+  const ops = R.operating_points;
+  const rows = [
+    ['Predict "no fall" always', R.baseline_majority.accuracy, 0],
+    ['Tuned to look accurate',   ops.accuracy_matched_to_majority_baseline.accuracy,
+                                 ops.accuracy_matched_to_majority_baseline.recall],
+    ['Only when fairly sure',    ops.high_precision.accuracy, ops.high_precision.recall],
+    ['Deployed default',         ops.balanced_f2.accuracy,    ops.balanced_f2.recall],
+    ['Catch as many as possible',ops.high_sensitivity.accuracy, ops.high_sensitivity.recall]
+  ];
+  new Chart(has('chAccuracyTrap'), {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => r[0]),
+      datasets: [
+        { label: 'Accuracy', data: rows.map(r => r[1]), backgroundColor: C1 },
+        { label: 'Falls actually caught (recall)', data: rows.map(r => r[2]), backgroundColor: C2 }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      scales: {
+        x: { min: 0, max: 1, grid: grid, ticks: { callback: v => (v * 100) + '%' } },
+        y: { grid: noGrid }
+      },
+      plugins: {
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + pct(c.parsed.x) } }
+      }
+    }
+  });
+}
+
+/* ── Act 2 — model comparison ──────────────────────────────────────────── */
+if (has('chModels')) {
+  const models = [
+    ['Logistic regression', R.logistic_regression_loso],
+    ['Random forest',       R.random_forest_loso],
+    ['Gradient boosting',   R.gradient_boosting_loso],
+    ['Existing paper score', R.baseline_static_risk_score]
+  ];
+  const base = R.dataset.positive_rate;
+  new Chart(has('chModels'), {
+    type: 'bar',
+    data: {
+      labels: models.map(m => m[0]),
+      datasets: [
+        { label: 'ROC-AUC', data: models.map(m => m[1].roc_auc), backgroundColor: C1 },
+        { label: 'Average precision', data: models.map(m => m[1].average_precision), backgroundColor: C2 }
+      ]
+    },
+    options: {
+      scales: {
+        y: { min: 0, max: 1, grid: grid, title: { display: true, text: 'score' } },
+        x: { grid: noGrid }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            afterBody: c => c[0].datasetIndex === 1
+              ? 'Chance level for average precision is the base rate, ' + pct(base)
+              : 'Chance level for AUC is 0.500'
+          }
+        }
+      }
+    }
+  });
+}
+
+/* ── Act 3 — leakage ───────────────────────────────────────────────────── */
+if (has('chLeakage')) {
+  const names = [['logistic_regression','Logistic regression'],
+                 ['random_forest','Random forest'],
+                 ['gradient_boosting','Gradient boosting']];
+  new Chart(has('chLeakage'), {
+    type: 'bar',
+    data: {
+      labels: names.map(n => n[1]),
+      datasets: [
+        { label: 'Row-shuffled folds (leaks)', data: names.map(n => R[n[0]].roc_auc), backgroundColor: C2 },
+        { label: 'Grouped by resident',        data: names.map(n => R[n[0] + '_groupkfold'].roc_auc), backgroundColor: C3 },
+        { label: 'Leave one resident out',     data: names.map(n => R[n[0] + '_loso'].roc_auc), backgroundColor: C1 }
+      ]
+    },
+    options: {
+      scales: { y: { min: 0.5, max: 0.95, grid: grid, title: { display: true, text: 'ROC-AUC' } },
+                x: { grid: noGrid } }
+    }
+  });
+}
+
+/* ── Act 4 — learning curve ────────────────────────────────────────────── */
+if (LC && has('chCurve')) {
+  const pts = LC.curve;
+  const xs  = pts.map(p => p.n_residents);
+  const mean = m => pts.map(p => p[m].loso_auc.mean);
+  const lo   = pts.map(p => p.logistic_regression.loso_auc.min);
+  const hi   = pts.map(p => p.logistic_regression.loso_auc.max);
+
+  new Chart(has('chCurve'), {
+    type: 'line',
+    data: {
+      labels: xs,
+      datasets: [
+        { label: 'Range across draws', data: hi, borderWidth: 0, pointRadius: 0,
+          backgroundColor: 'rgba(42,120,214,.13)', fill: '+1', order: 3 },
+        { label: '_lo', data: lo, borderWidth: 0, pointRadius: 0, fill: false, order: 3 },
+        { label: 'Logistic regression', data: mean('logistic_regression'),
+          borderColor: C1, backgroundColor: C1, tension: .25, order: 1 },
+        { label: 'Random forest', data: mean('random_forest'),
+          borderColor: C2, backgroundColor: C2, tension: .25, borderDash: [5, 4], order: 2 }
+      ]
+    },
+    options: {
+      scales: {
+        y: { min: 0.5, max: 1, grid: grid, title: { display: true, text: 'LOSO ROC-AUC' } },
+        x: { grid: noGrid, title: { display: true, text: 'residents in the cohort' } }
+      },
+      plugins: {
+        legend: { labels: { filter: i => i.text !== '_lo' } },
+        tooltip: { filter: c => c.dataset.label !== '_lo' }
+      }
+    }
+  });
+
+  new Chart(has('chCurveSd'), {
+    type: 'bar',
+    data: {
+      labels: xs,
+      datasets: [{ label: 'SD of LOSO AUC across draws',
+                   data: pts.map(p => p.single_draw ? null : p.logistic_regression.loso_auc.sd),
+                   backgroundColor: C1 }]
+    },
+    options: {
+      scales: { y: { grid: grid, beginAtZero: true },
+                x: { grid: noGrid, title: { display: true, text: 'residents' } } },
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: c => 'SD ' + (c.parsed.y ?? 0).toFixed(3) } } }
+    }
+  });
+
+  new Chart(has('chCurveGap'), {
+    type: 'line',
+    data: {
+      labels: xs,
+      datasets: [{ label: 'Optimism gap', data: pts.map(p => p.logistic_regression.optimism_gap.mean),
+                   borderColor: C2, backgroundColor: C2, tension: .25 }]
+    },
+    options: {
+      scales: { y: { grid: grid, title: { display: true, text: 'row-shuffled − LOSO' } },
+                x: { grid: noGrid, title: { display: true, text: 'residents' } } },
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // The written finding is derived from the numbers, so it cannot drift from them.
+  const el = document.getElementById('curveFinding');
+  if (el) {
+    const lrOf = p => p.logistic_regression.loso_auc;
+    const first = pts[0], last = pts[pts.length - 1];
+    const multi = pts.filter(p => !p.single_draw);
+    const worstPt = multi.reduce((a, b) => (lrOf(a).min <= lrOf(b).min ? a : b));
+    const widest  = multi.reduce((a, b) => (lrOf(a).sd >= lrOf(b).sd ? a : b));
+    const settled = multi.filter(p => lrOf(p).sd <= 0.015).map(p => p.n_residents);
+    el.innerHTML =
+      '<strong>More residents bought certainty, not skill.</strong> ' +
+      'Average performance barely moved — ' + lrOf(first).mean.toFixed(3) + ' at ' +
+      first.n_residents + ' residents against ' + lrOf(last).mean.toFixed(3) + ' at ' +
+      last.n_residents + '. What changed is how much that average can be relied on. ' +
+      'At ' + widest.n_residents + ' residents the spread across draws was ' +
+      lrOf(widest).sd.toFixed(3) + ' AUC and one draw came back at ' +
+      lrOf(worstPt).min.toFixed(3) + ' — at or below chance, from the same pipeline and the ' +
+      'same generating equations, on a cohort that simply happened to contain the wrong residents. ' +
+      'By ' + (settled.length ? settled[0] : last.n_residents) + ' residents the spread had fallen ' +
+      'to ' + (settled.length ? lrOf(multi.find(p => p.n_residents === settled[0])).sd.toFixed(3) : '—') +
+      ' and stayed there. ' +
+      '<br><br>The practical reading is that a small-cohort result is not a weaker version of a ' +
+      'large-cohort result, it is a different kind of claim: at ' + widest.n_residents +
+      ' residents the honest report is a range wide enough to contain both a useful model and a ' +
+      'useless one, and no amount of careful cross-validation narrows it. The one figure that ' +
+      'does not settle down is average precision, which sits near ' +
+      last.logistic_regression.loso_average_precision.mean.toFixed(2) +
+      ' throughout — the ranking is informative long before the estimate of how informative it is ' +
+      'becomes stable.';
+  }
+}
+
+/* ── Act 5 — threshold sweep ───────────────────────────────────────────── */
+if (has('chSweep') && R.loso_threshold_sweep) {
+  const sw = R.loso_threshold_sweep;
+  const xs = sw.map(s => s.threshold);
+  const line = (label, key, colour, dash) => ({
+    label, data: sw.map(s => s[key]), borderColor: colour, backgroundColor: colour,
+    tension: .25, borderDash: dash || []
+  });
+  const opTh = R.operating_point ? R.operating_point.threshold : null;
+  const marker = {
+    id: 'opMarker',
+    afterDraw(chart) {
+      if (opTh === null) return;
+      const x = chart.scales.x, y = chart.scales.y;
+      let idx = 0, best = Infinity;
+      xs.forEach((v, i) => { const d = Math.abs(v - opTh); if (d < best) { best = d; idx = i; } });
+      const px = x.getPixelForTick ? x.getPixelForValue(idx) : x.getPixelForValue(opTh);
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.setLineDash([4, 4]); ctx.strokeStyle = INK3; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(px, y.top); ctx.lineTo(px, y.bottom); ctx.stroke();
+      ctx.setLineDash([]);
+      const label = 'deployed ' + opTh;
+      ctx.font = '600 10px system-ui';
+      const w = ctx.measureText(label).width + 10;
+      const right = px > (x.left + x.right) / 2;
+      const bx = right ? px - w - 4 : px + 4;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(bx, y.bottom - 20, w, 15);
+      ctx.strokeStyle = RULE; ctx.lineWidth = 1;
+      ctx.strokeRect(bx, y.bottom - 20, w, 15);
+      ctx.fillStyle = INK2; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, bx + 5, y.bottom - 12);
+      ctx.restore();
+    }
+  };
+  new Chart(has('chSweep'), {
+    type: 'line',
+    data: { labels: xs, datasets: [
+      line('Recall — falls caught', 'recall', C1),
+      line('Precision — alerts that were right', 'precision', C2),
+      line('Specificity', 'specificity', C3, [5, 4])
+    ]},
+    options: {
+      scales: { y: { min: 0, max: 1, grid: grid, ticks: { callback: v => (v * 100) + '%' } },
+                x: { grid: noGrid, title: { display: true, text: 'alert threshold' },
+                     ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7 } } },
+      plugins: { tooltip: { callbacks: { label: c => c.dataset.label + ': ' + pct(c.parsed.y) } } }
+    },
+    plugins: [marker]
+  });
+
+  new Chart(has('chAlerts'), {
+    type: 'line',
+    data: { labels: xs, datasets: [{
+      label: 'Alerts per week across the home',
+      data: sw.map(s => s.alerts_per_week_across_home),
+      borderColor: C2, backgroundColor: 'rgba(235,104,52,.12)', fill: true, tension: .25
+    }]},
+    options: {
+      scales: { y: { beginAtZero: true, grid: grid, title: { display: true, text: 'alerts / week' } },
+                x: { grid: noGrid, title: { display: true, text: 'alert threshold' },
+                     ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7 } } },
+      plugins: { legend: { display: false } },
+    },
+    plugins: [marker]
+  });
+}
+
+/* ── Act 6 — calibration ───────────────────────────────────────────────── */
+if (has('chCalib') && R.calibration) {
+  const cal = R.calibration;
+  const toXY = b => b.map(d => ({ x: d.mean_predicted, y: d.observed_rate, n: d.n }));
+  new Chart(has('chCalib'), {
+    type: 'scatter',
+    data: { datasets: [
+      { type: 'line', label: 'Perfect agreement', data: [{x:0,y:0},{x:1,y:1}],
+        borderColor: INK3, borderDash: [5,4], borderWidth: 1, pointRadius: 0, fill: false },
+      { label: 'Before calibration', data: toXY(cal.bins_uncalibrated),
+        backgroundColor: C2, borderColor: C2, pointRadius: 7, showLine: true,
+        borderWidth: 2, tension: .2 },
+      { label: 'After calibration (held out)', data: toXY(cal.bins_heldout || cal.bins),
+        backgroundColor: C1, borderColor: C1, pointRadius: 7, showLine: true,
+        borderWidth: 2, tension: .2 }
+    ]},
+    options: {
+      scales: {
+        x: { min: 0, max: 1, grid: grid, title: { display: true, text: 'risk the model stated' },
+             ticks: { callback: v => (v * 100) + '%' } },
+        y: { min: 0, max: 1, grid: grid, title: { display: true, text: 'falls that actually followed' },
+             ticks: { callback: v => (v * 100) + '%' } }
+      },
+      plugins: { tooltip: { callbacks: {
+        label: c => c.dataset.label + ': said ' + pct(c.parsed.x) + ', observed ' + pct(c.parsed.y) +
+                    (c.raw.n ? ' (' + c.raw.n + ' weeks)' : '')
+      } } }
+    }
+  });
+}
+
+/* ── Act 7 — feature importance ────────────────────────────────────────── */
+if (has('chFeat') && R.feature_importance) {
+  const fi = R.feature_importance.slice(0, 12);
+  new Chart(has('chFeat'), {
+    type: 'bar',
+    data: { labels: fi.map(f => f.feature), datasets: [{
+      label: 'Drop in AUC when shuffled',
+      data: fi.map(f => f.importance_mean), backgroundColor: C1
+    }]},
+    options: {
+      indexAxis: 'y',
+      scales: { x: { beginAtZero: true, grid: grid, title: { display: true, text: 'Δ ROC-AUC' } },
+                y: { grid: noGrid } },
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: {
+                   label: c => 'Δ AUC ' + c.parsed.x.toFixed(4) +
+                               ' (SD ' + (fi[c.dataIndex].importance_std ?? 0).toFixed(4) + ')' } } }
+    }
+  });
+}
+</script>
+{% endblock %}

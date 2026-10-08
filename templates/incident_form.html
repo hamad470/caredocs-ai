@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block title %}Report Incident{% endblock %}
+{% block page_title %}<i class="bi bi-exclamation-triangle-fill text-danger"></i> Report Incident{% endblock %}
+
+{% block content %}
+<div class="alert alert-danger py-2 mb-3">
+  <strong><i class="bi bi-exclamation-circle-fill"></i> Complete this form immediately after an incident.</strong>
+  All fields marked * are mandatory. Notify manager if severity is Major or above.
+</div>
+
+<form method="post" id="incidentForm">
+  <div class="ai-panel">
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span class="ai-badge"><i class="bi bi-stars"></i> AI Assist</span>
+      <strong style="font-size:.88rem;">Auto-generate incident description</strong>
+    </div>
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" name="use_ai" id="useAi" value="yes" checked>
+      <label class="form-check-label" for="useAi" style="font-size:.82rem;">
+        Use AI to generate description if field is left blank
+      </label>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-md-8">
+
+      <div class="form-section">
+        <h5><i class="bi bi-person-badge"></i> Resident & Basic Details</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Resident <span class="text-danger">*</span></label>
+            <select name="resident_id" class="form-select" required>
+              <option value="">— Select resident —</option>
+              {% for r in residents %}
+              <option value="{{ r.resident_id }}">{{ r.preferred_name }} — Rm {{ r.room_number }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Date <span class="text-danger">*</span></label>
+            <input type="date" name="date" class="form-control" value="{{ today }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Time <span class="text-danger">*</span></label>
+            <input type="time" name="time" class="form-control" value="{{ now }}" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Shift</label>
+            <select name="shift" class="form-select">
+              <option value="Morning">Morning</option>
+              <option value="Afternoon">Afternoon</option>
+              <option value="Night">Night</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Incident Type <span class="text-danger">*</span></label>
+            <select name="incident_type" class="form-select" required>
+              <option value="">— Select type —</option>
+              <option>Fall</option>
+              <option>Medication Error</option>
+              <option>Pressure Ulcer Deterioration</option>
+              <option>Aggressive Behaviour</option>
+              <option>Choking / Swallowing</option>
+              <option>Infection / Illness</option>
+              <option>Missing Person</option>
+              <option>Self-Harm</option>
+              <option>Fire / Evacuation</option>
+              <option>Visitor Complaint</option>
+              <option>Equipment Failure</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Severity <span class="text-danger">*</span></label>
+            <select name="severity" class="form-select" required id="severitySelect">
+              <option value="">— Select —</option>
+              <option value="Minor">Minor — No injury</option>
+              <option value="Moderate">Moderate — Minor injury</option>
+              <option value="Major">Major — Significant injury</option>
+              <option value="Critical">Critical — Life threatening</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Location <span class="text-danger">*</span></label>
+            <select name="location" class="form-select" required>
+              <option>Bedroom</option>
+              <option>Bathroom / Toilet</option>
+              <option>Lounge</option>
+              <option>Dining Room</option>
+              <option>Corridor</option>
+              <option>Garden</option>
+              <option>Reception</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Witnessed?</label>
+            <select name="witnessed" class="form-select">
+              <option value="Yes">Yes</option>
+              <option value="No">No — found after</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Witness Name</label>
+            <input type="text" name="witness_name" class="form-control">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h5><i class="bi bi-file-text"></i> Incident Description</h5>
+        <div class="mb-2 d-flex gap-2">
+          <button type="button" class="btn btn-sm" id="generateBtn"
+                  style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;">
+            <i class="bi bi-stars"></i> Generate AI Description
+          </button>
+          <span id="genStatus" class="text-muted align-self-center" style="font-size:.8rem;"></span>
+        </div>
+        <textarea name="description" id="incidentDesc" class="form-control" rows="4"
+                  placeholder="Describe exactly what happened, in chronological order..."></textarea>
+      </div>
+
+      <div class="form-section">
+        <h5><i class="bi bi-bandaid"></i> Injuries & Medical Response</h5>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Injuries Sustained</label>
+            <input type="text" name="injuries" class="form-control"
+                   placeholder="e.g. Bruising to right hip — no fractures noted, or None observed">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Medical Attention Required</label>
+            <select name="medical_attention" class="form-select">
+              <option value="No">No</option>
+              <option value="First Aid">First Aid applied</option>
+              <option value="GP Contacted">GP Contacted</option>
+              <option value="999 called">999 Called — ambulance</option>
+              <option value="Hospital admission">Hospital Admission</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Outcome</label>
+            <input type="text" name="outcome" class="form-control"
+                   placeholder="e.g. Resident comfortable, no further deterioration">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Immediate Actions Taken <span class="text-danger">*</span></label>
+            <textarea name="immediate_actions" class="form-control" rows="3" required
+                      placeholder="List actions taken immediately after the incident..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h5><i class="bi bi-telephone"></i> Notifications</h5>
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">GP Notified?</label>
+            <select name="gp_notified" class="form-select">
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Family Notified?</label>
+            <select name="family_notified" class="form-select">
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">CQC Notification?</label>
+            <select name="cqc_notification" class="form-select">
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Investigation Req?</label>
+            <select name="investigation_required" class="form-select">
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Risk Assessment Updated?</label>
+            <select name="risk_assessment_updated" class="form-select">
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Care Plan Updated?</label>
+            <select name="care_plan_updated" class="form-select">
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h5><i class="bi bi-lightbulb"></i> Learning (complete if investigation required)</h5>
+        <div class="mb-3">
+          <label class="form-label">Lessons Learned</label>
+          <textarea name="lessons_learned" class="form-control" rows="2"></textarea>
+        </div>
+        <div>
+          <label class="form-label">Preventative Actions</label>
+          <textarea name="preventative_actions" class="form-control" rows="2"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-12 col-md-4">
+      <div class="form-section" style="position:sticky;top:70px;">
+        <h5>Submit Incident</h5>
+        <div id="severityAlert" class="alert alert-warning py-2 mb-3" style="font-size:.82rem;display:none;">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <strong>Major/Critical:</strong> Notify manager immediately.
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-600">First on Scene</label>
+          <input type="text" class="form-control" value="{{ session.get('full_name','') }}" disabled>
+          <small class="text-muted">Auto-filled as current user</small>
+        </div>
+        <button type="submit" class="btn btn-danger w-100 mb-2">
+          <i class="bi bi-save"></i> Submit Incident Report
+        </button>
+        <a href="{{ url_for('incidents_list') }}" class="btn btn-outline-secondary w-100">Cancel</a>
+        <hr>
+        <div style="font-size:.75rem;color:#64748b;">
+          <strong>Required notifications:</strong>
+          <ul class="mb-0 ps-3 mt-1">
+            <li>Notify senior on shift</li>
+            <li>Major+: notify manager</li>
+            <li>Complete RIDDOR if applicable</li>
+            <li>CQC notification within 24h for serious incidents</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('severitySelect').addEventListener('change', function() {
+  const alert = document.getElementById('severityAlert');
+  alert.style.display = ['Major','Critical'].includes(this.value) ? 'block' : 'none';
+});
+
+document.getElementById('generateBtn').addEventListener('click', async function() {
+  const btn = this;
+  const status = document.getElementById('genStatus');
+  const form = document.getElementById('incidentForm');
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+  status.textContent = 'Calling AI...';
+
+  const resSelect = form.querySelector('[name=resident_id]');
+  const data = {
+    type: 'incident',
+    preferred_name: resSelect?.selectedOptions[0]?.text?.split(' —')[0] || 'Resident',
+    incident_type: form.querySelector('[name=incident_type]')?.value,
+    severity:      form.querySelector('[name=severity]')?.value,
+    time:          form.querySelector('[name=time]')?.value,
+    location:      form.querySelector('[name=location]')?.value,
+    witness_name:  form.querySelector('[name=witness_name]')?.value,
+    injuries:      form.querySelector('[name=injuries]')?.value,
+    immediate_actions: form.querySelector('[name=immediate_actions]')?.value,
+  };
+
+  try {
+    const resp = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    const result = await resp.json();
+    document.getElementById('incidentDesc').value = result.text;
+    status.innerHTML = result.ai_used
+      ? '<span class="ai-badge"><i class="bi bi-stars"></i> AI generated</span>'
+      : '<span class="text-muted">Template used</span>';
+  } catch(e) {
+    status.textContent = 'Error — type manually.';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-stars"></i> Generate AI Description';
+});
+</script>
+{% endblock %}

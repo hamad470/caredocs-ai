@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Add Medication{% endblock %}
+{% block page_title %}<i class="bi bi-capsule-pill"></i> Add Medication{% endblock %}
+
+{% block content %}
+<form method="post">
+  <div class="row g-3">
+    <div class="col-12 col-md-8">
+      <div class="form-section">
+        <h5>Medication Details</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Resident <span class="text-danger">*</span></label>
+            <select name="resident_id" class="form-select" required>
+              <option value="">— Select —</option>
+              {% for r in residents %}
+              <option value="{{ r.resident_id }}">{{ r.preferred_name }} — Rm {{ r.room_number }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Medication Name <span class="text-danger">*</span></label>
+            <input type="text" name="medication_name" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Generic Name</label>
+            <input type="text" name="generic_name" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Dose <span class="text-danger">*</span></label>
+            <input type="text" name="dose" class="form-control" placeholder="e.g. 10mg" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Route <span class="text-danger">*</span></label>
+            <select name="route" class="form-select" required>
+              <option>Oral</option><option>Sublingual</option><option>Topical</option>
+              <option>Inhalation</option><option>Injection</option><option>Rectal</option>
+              <option>Eye drops</option><option>Ear drops</option><option>Patch</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Frequency <span class="text-danger">*</span></label>
+            <input type="text" name="frequency" class="form-control" required
+                   placeholder="e.g. Once daily in the morning, Twice daily with meals">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Indication</label>
+            <input type="text" name="indication" class="form-control" placeholder="Condition being treated">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Prescribing GP</label>
+            <input type="text" name="prescribing_gp" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Start Date</label>
+            <input type="date" name="start_date" class="form-control" value="{{ today }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Review Date</label>
+            <input type="date" name="review_date" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <div class="form-check form-switch mt-2">
+              <input class="form-check-input" type="checkbox" name="is_controlled" id="cd">
+              <label class="form-check-label" for="cd"><strong class="text-danger">Controlled Drug</strong></label>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-check form-switch mt-2">
+              <input class="form-check-input" type="checkbox" name="is_prn" id="prn">
+              <label class="form-check-label" for="prn">PRN (as required)</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">PRN Instructions</label>
+            <textarea name="prn_instructions" class="form-control" rows="2"
+                      placeholder="When to give, max dose, frequency limit..."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Administration Notes</label>
+            <textarea name="admin_notes" class="form-control" rows="2"
+                      placeholder="e.g. Do not crush, give with food..."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Side Effects to Monitor</label>
+            <textarea name="side_effects" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="form-section" style="position:sticky;top:70px;">
+        <h5>Add Medication</h5>
+        <button type="submit" class="btn btn-primary w-100 mb-2">
+          <i class="bi bi-save"></i> Add to Medication Chart
+        </button>
+        <a href="{{ url_for('medications_list') }}" class="btn btn-outline-secondary w-100">Cancel</a>
+        <div class="alert alert-warning mt-3 py-2" style="font-size:.78rem;">
+          <strong>Note:</strong> Medications must be prescribed by a GP. Always verify against the prescription before adding.
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

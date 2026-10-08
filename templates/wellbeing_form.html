@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block title %}Wellbeing Assessment{% endblock %}
+{% block page_title %}<i class="bi bi-heart-pulse-fill text-success"></i> Wellbeing Assessment{% endblock %}
+
+{% block content %}
+<form method="post" id="wellbeingForm">
+  <div class="ai-panel">
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <span class="ai-badge"><i class="bi bi-stars"></i> AI Assist</span>
+      <strong style="font-size:.88rem;">Draft the review summary from the scores and notes below</strong>
+    </div>
+    <p class="mb-2" style="font-size:.82rem;color:#4c1d95;">
+      Score the six domains and add whatever notes you have, then press
+      <strong>Generate Summary</strong>. The model is given this period's scores, your notes,
+      and the resident's previous review, so the summary describes what has changed rather
+      than repeating the numbers. Everything it writes is editable before you save.
+    </p>
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" name="use_ai" id="useAi" value="yes" checked>
+      <label class="form-check-label" for="useAi" style="font-size:.82rem;">
+        If I leave the summary blank, generate it on save
+      </label>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-md-8">
+      <div class="form-section">
+        <h5><i class="bi bi-person-badge"></i> Assessment Details</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Resident <span class="text-danger">*</span></label>
+            <select name="resident_id" class="form-select" required>
+              <option value="">— Select resident —</option>
+              {% for r in residents %}
+              <option value="{{ r.resident_id }}">{{ r.preferred_name }} — Rm {{ r.room_number }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Assessment Date</label>
+            <input type="date" name="assessment_date" class="form-control" value="{{ today }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Period Covered</label>
+            <select name="period_covered" class="form-select">
+              <option>Last 4 weeks</option>
+              <option>Last month</option>
+              <option>Last 3 months</option>
+              <option>Last 6 months</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h5><i class="bi bi-bar-chart-fill"></i> Wellbeing Scores (1–10)</h5>
+        <p class="text-muted" style="font-size:.82rem;">1 = Very poor, 10 = Excellent</p>
+        <div class="row g-3">
+          {% set domains = [
+            ('physical_health_score', 'Physical Health', 'bi-lungs'),
+            ('mental_health_score', 'Mental Health', 'bi-brain'),
+            ('social_engagement_score', 'Social Engagement', 'bi-people'),
+            ('personal_care_score', 'Personal Care', 'bi-person-check'),
+            ('nutrition_score', 'Nutrition & Hydration', 'bi-cup-hot'),
+            ('pain_management_score', 'Pain Management', 'bi-activity'),
+          ] %}
+          {% for field, label, icon in domains %}
+          <div class="col-md-4">
+            <label class="form-label"><i class="bi {{ icon }}"></i> {{ label }}</label>
+            <input type="range" name="{{ field }}" class="form-range score-range" min="1" max="10" value="5" id="{{ field }}"
+                   oninput="document.getElementById('{{ field }}_val').textContent=this.value">
+            <div class="d-flex justify-content-between" style="font-size:.75rem;color:#94a3b8;">
+              <span>1</span>
+              <strong id="{{ field }}_val" style="color:#1e3a5f;">5</strong>
+              <span>10</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h5><i class="bi bi-pencil-square"></i> Narrative Notes</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Physical Health Notes</label>
+            <textarea name="physical_notes" class="form-control" rows="2"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Mental Health Notes</label>
+            <textarea name="mental_notes" class="form-control" rows="2"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Social Engagement Notes</label>
+            <textarea name="social_notes" class="form-control" rows="2"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Goals Progress</label>
+            <textarea name="goals_progress" class="form-control" rows="2"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Concerns This Period</label>
+            <textarea name="concerns" class="form-control" rows="2"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Positive Outcomes</label>
+            <textarea name="positive_outcomes" class="form-control" rows="2"></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Actions for Next Period</label>
+            <textarea name="actions_next_period" class="form-control" rows="2"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Resident's Voice</label>
+            <textarea name="resident_voice" class="form-control" rows="2"
+                      placeholder="What did the resident say about their own wellbeing?"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Family Feedback</label>
+            <textarea name="family_feedback" class="form-control" rows="2"></textarea>
+          </div>
+          <div class="col-12">
+            <div class="mb-2 d-flex gap-2 flex-wrap align-items-center">
+              <button type="button" id="generateBtn" class="btn btn-sm"
+                      style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;">
+                <i class="bi bi-stars"></i> Generate Summary
+              </button>
+              <span id="genStatus" style="font-size:.8rem;"></span>
+            </div>
+            <label class="form-label">Overall Summary</label>
+            <textarea name="summary" id="wellbeingSummary" class="form-control" rows="6"
+                      placeholder="Write the review summary here, or generate a draft above and edit it."></textarea>
+            <div id="genMeta" class="form-text" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="form-section" style="position:sticky;top:70px;">
+        <h5>Submit Assessment</h5>
+        <div class="mb-3">
+          <label class="form-label">Assessed By</label>
+          <input type="text" class="form-control" value="{{ session.get('full_name','') }}" disabled>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Calculated Overall Score</label>
+          <div class="form-control bg-light text-center fw-bold" id="overallScore">—</div>
+          <div class="form-text">Average of all domain scores</div>
+        </div>
+        <button type="submit" class="btn btn-success w-100 mb-2">
+          <i class="bi bi-save"></i> Save Assessment
+        </button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary w-100">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Update overall score
+function updateOverall() {
+  const ranges = document.querySelectorAll('.score-range');
+  let total = 0; let count = 0;
+  ranges.forEach(r => { total += parseInt(r.value); count++; });
+  document.getElementById('overallScore').textContent = Math.round(total/count) + '/10';
+}
+document.querySelectorAll('.score-range').forEach(r => r.addEventListener('input', updateOverall));
+updateOverall();
+
+document.getElementById('generateBtn').addEventListener('click', async function () {
+  const btn    = this;
+  const status = document.getElementById('genStatus');
+  const meta   = document.getElementById('genMeta');
+  const form   = document.getElementById('wellbeingForm');
+  const box    = document.getElementById('wellbeingSummary');
+
+  const resident = form.querySelector('[name=resident_id]');
+  if (!resident.value) {
+    status.innerHTML = '<span class="text-danger">Choose a resident first — '
+                     + 'the summary is written against their previous review.</span>';
+    resident.focus();
+    return;
+  }
+
+  if (box.value.trim() &&
+      !confirm('Replace the summary you have already written?')) return;
+
+  const val = n => form.querySelector('[name="' + n + '"]')?.value ?? '';
+
+  const payload = {
+    type: 'wellbeing',
+    resident_id:    resident.value,
+    preferred_name: resident.selectedOptions[0].text.split(' \u2014')[0].trim(),
+    period_covered: val('period_covered'),
+    physical_health_score:   val('physical_health_score'),
+    mental_health_score:     val('mental_health_score'),
+    social_engagement_score: val('social_engagement_score'),
+    personal_care_score:     val('personal_care_score'),
+    nutrition_score:         val('nutrition_score'),
+    pain_management_score:   val('pain_management_score'),
+    physical_notes:      val('physical_notes'),
+    mental_notes:        val('mental_notes'),
+    social_notes:        val('social_notes'),
+    goals_progress:      val('goals_progress'),
+    concerns:            val('concerns'),
+    positive_outcomes:   val('positive_outcomes'),
+    actions_next_period: val('actions_next_period'),
+    resident_voice:      val('resident_voice'),
+    family_feedback:     val('family_feedback')
+  };
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Writing summary\u2026';
+  status.innerHTML = '<span class="text-muted">Sending scores and notes to the model\u2026</span>';
+  meta.style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/generate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error('Server returned ' + resp.status);
+    const result = await resp.json();
+    if (result.error) throw new Error(result.error);
+
+    box.value = result.text;
+    box.style.height = 'auto';
+    box.style.height = Math.min(box.scrollHeight, 420) + 'px';
+
+    status.innerHTML = result.ai_used
+      ? '<span class="ai-badge"><i class="bi bi-stars"></i> ' + (result.provider || 'AI') + '</span>'
+      : '<span class="badge bg-secondary">Offline template</span>';
+
+    const notes = [];
+    notes.push(result.ai_used
+      ? 'Drafted by the ' + (result.provider || 'language') + ' model. Read it against the '
+        + 'record and edit anything it has got wrong \u2014 you are signing this, not the model.'
+      : 'No AI provider was reachable, so this is the deterministic offline summary. '
+        + 'It is accurate but plain; edit it freely.');
+    if (result.compared_with) {
+      notes.push('Compared against the review dated ' + result.compared_with + '.');
+    } else {
+      notes.push('This is the first wellbeing review on record for this resident, '
+               + 'so there is nothing to compare against yet.');
+    }
+    meta.textContent = notes.join(' ');
+    meta.style.display = 'block';
+
+  } catch (err) {
+    status.innerHTML = '<span class="text-danger">Could not generate \u2014 ' + err.message + '</span>';
+    meta.textContent = 'Write the summary by hand, or check AI Settings if this keeps happening. '
+                     + 'Nothing has been saved.';
+    meta.style.display = 'block';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-stars"></i> Generate Summary';
+});
+</script>
+{% endblock %}

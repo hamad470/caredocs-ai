@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Risk Assessment{% endblock %}
+{% block page_title %}<i class="bi bi-shield-exclamation text-warning"></i> Risk Assessment{% endblock %}
+
+{% block content %}
+<form method="post" id="riskForm">
+  <div class="ai-panel">
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span class="ai-badge"><i class="bi bi-stars"></i> AI Assist</span>
+      <strong style="font-size:.88rem;">Auto-generate risk narrative</strong>
+    </div>
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" name="use_ai" id="useAi" value="yes" checked>
+      <label class="form-check-label" for="useAi" style="font-size:.82rem;">Use AI to generate narrative</label>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-md-8">
+      <div class="form-section">
+        <h5><i class="bi bi-person-badge"></i> Assessment Details</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Resident <span class="text-danger">*</span></label>
+            <select name="resident_id" class="form-select" required>
+              <option value="">— Select resident —</option>
+              {% for r in residents %}
+              <option value="{{ r.resident_id }}">{{ r.preferred_name }} — Rm {{ r.room_number }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Assessment Type <span class="text-danger">*</span></label>
+            <select name="assessment_type" class="form-select" required>
+              <option value="">— Select type —</option>
+              <option>Falls Risk</option>
+              <option>Pressure Ulcer Risk</option>
+              <option>Nutrition Risk (MUST)</option>
+              <option>Behaviour Risk</option>
+              <option>Environmental Risk</option>
+              <option>Moving & Handling Risk</option>
+              <option>Infection Risk</option>
+              <option>Choking Risk</option>
+              <option>Mental Capacity Assessment</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Date Assessed</label>
+            <input type="date" name="date_assessed" class="form-control" value="{{ today }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Review Date</label>
+            <input type="date" name="review_date" class="form-control">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Score</label>
+            <input type="number" name="score" class="form-control" min="0" max="100" placeholder="e.g. 16">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Risk Level <span class="text-danger">*</span></label>
+            <select name="risk_level" class="form-select" required>
+              <option value="">—</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+              <option value="Very High">Very High</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h5><i class="bi bi-list-ul"></i> Risk Factors & Interventions</h5>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Risk Factors Identified <span class="text-danger">*</span></label>
+            <textarea name="risk_factors" class="form-control" rows="3" required
+                      placeholder="List all identified risk factors..."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Current Interventions in Place</label>
+            <textarea name="interventions" class="form-control" rows="3"
+                      placeholder="List interventions and measures already in place..."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Additional Actions Required</label>
+            <textarea name="additional_actions" class="form-control" rows="2"
+                      placeholder="Any further actions needed..."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Outcome Measures / Goals</label>
+            <textarea name="outcome_measures" class="form-control" rows="2"
+                      placeholder="How will effectiveness be measured..."></textarea>
+          </div>
+          <div class="col-12">
+            <div class="mb-2 d-flex gap-2">
+              <button type="button" id="generateBtn" class="btn btn-sm"
+                      style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;">
+                <i class="bi bi-stars"></i> Generate AI Narrative
+              </button>
+              <span id="genStatus" class="text-muted align-self-center" style="font-size:.8rem;"></span>
+            </div>
+            <label class="form-label">Full Assessment Narrative</label>
+            <textarea name="narrative" id="riskNarrative" class="form-control" rows="5"
+                      placeholder="Full professional risk assessment narrative..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="form-section" style="position:sticky;top:70px;">
+        <h5>Submit Assessment</h5>
+        <div class="mb-3">
+          <label class="form-label">Assessed By</label>
+          <input type="text" class="form-control" value="{{ session.get('full_name','') }}" disabled>
+        </div>
+        <button type="submit" class="btn btn-warning w-100 mb-2 text-dark">
+          <i class="bi bi-save"></i> Save Risk Assessment
+        </button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary w-100">Cancel</a>
+        <hr>
+        <div style="font-size:.75rem;color:#64748b;">
+          <strong>Common tools:</strong>
+          <ul class="mb-0 ps-3 mt-1">
+            <li>Falls: Waterlow / FRAT</li>
+            <li>Pressure: Braden / Waterlow</li>
+            <li>Nutrition: MUST Score</li>
+            <li>Capacity: MCA 2005 checklist</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('generateBtn').addEventListener('click', async function() {
+  const btn = this; const status = document.getElementById('genStatus');
+  const form = document.getElementById('riskForm');
+  btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+  const getVal = n => form.querySelector(`[name=${n}]`)?.value;
+  const data = {
+    type: 'risk',
+    preferred_name: form.querySelector('[name=resident_id]')?.selectedOptions[0]?.text?.split(' —')[0] || 'Resident',
+    assessment_type: getVal('assessment_type'),
+    risk_level: getVal('risk_level'),
+    score: getVal('score'),
+    risk_factors: getVal('risk_factors'),
+    interventions: getVal('interventions'),
+  };
+  try {
+    const resp = await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    const result = await resp.json();
+    document.getElementById('riskNarrative').value = result.text;
+    status.innerHTML = result.ai_used ? '<span class="ai-badge"><i class="bi bi-stars"></i> AI</span>' : '<span class="text-muted">Template</span>';
+  } catch(e) { status.textContent = 'Error'; }
+  btn.disabled = false; btn.innerHTML = '<i class="bi bi-stars"></i> Generate AI Narrative';
+});
+</script>
+{% endblock %}

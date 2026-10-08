@@ -1,5 +1,5 @@
 """
-ai_config.py — Persistent Gemini key storage for CareHome Docs.
+ai_config.py — Persistent Gemini key storage for CareDocs AI.
 
 Keys are saved to ai_config.json alongside app.py. On import, saved keys are
 loaded into os.environ so ai_service.py and llm_client.py pick them up

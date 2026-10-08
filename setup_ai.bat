@@ -15,7 +15,7 @@ cd /d "%~dp0"
 
 echo.
 echo ========================================================================
-echo   CareHome Docs - Gemini key setup
+echo   CareDocs AI - Gemini key setup
 echo ========================================================================
 echo.
 echo  Paste up to 4 keys. Press Enter on an empty line to stop.

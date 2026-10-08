@@ -1,6 +1,8 @@
-# CareHome Docs
+# CareDocs AI
 
-[![CI](https://github.com/hamad470/carehome-docs/actions/workflows/ci.yml/badge.svg)](https://github.com/hamad470/carehome-docs/actions/workflows/ci.yml)
+**Automatic care-home documentation and fall-risk prediction.**
+
+[![CI](https://github.com/hamad470/caredocs-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/hamad470/caredocs-ai/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -32,11 +34,16 @@ Built as the practical component of an MSc Data Science dissertation
 
 ## Quick start
 
+> **New to Python or running this for the first time?** Follow the step-by-step
+> guide in **[INSTALL.md](INSTALL.md)** (Windows, macOS and Linux, with
+> troubleshooting). All required libraries are listed in
+> [`requirements.txt`](requirements.txt).
+
 Python 3.11 or newer. No GPU needed.
 
 ```bash
-git clone https://github.com/hamad470/carehome-docs.git
-cd carehome-docs
+git clone https://github.com/hamad470/caredocs-ai.git
+cd caredocs-ai
 python -m pip install -r requirements.txt
 python setup_project.py --skip-train   # builds the database and indexes (~1 min)
 python app.py

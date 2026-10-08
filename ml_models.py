@@ -1,5 +1,5 @@
 """
-ml_models.py — Machine Learning models for CareHome MVP
+ml_models.py — Machine Learning models for CareDocs AI
 Models implemented:
   1. Fall-Risk Binary Classifier
      - Logistic Regression + Random Forest

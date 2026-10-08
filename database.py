@@ -1,5 +1,5 @@
 """
-Database initialisation and seed data for CareHome MVP.
+Database initialisation and seed data for CareDocs AI.
 SQLite, no external DB server needed.
 """
 import sqlite3

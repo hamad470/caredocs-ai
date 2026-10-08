@@ -1,5 +1,5 @@
 """
-RAG Engine — Retrieval-Augmented Generation for CareHome MVP
+RAG Engine — Retrieval-Augmented Generation for CareDocs AI
 Supports two retrieval modes for ablation study:
   Mode A: TF-IDF + FAISS  (sparse, always available, sklearn-based)
   Mode B: Semantic + FAISS (dense, requires sentence-transformers)

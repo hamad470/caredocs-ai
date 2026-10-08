@@ -40,7 +40,7 @@ def main() -> int:
             print(*a)
 
     say(BAR)
-    say(" CareHome Docs — AI backend check")
+    say(" CareDocs AI — AI backend check")
     say(BAR)
 
     if not gem["configured"]:

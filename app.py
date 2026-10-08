@@ -1,5 +1,5 @@
 """
-CareHome Docs — Flask application.
+CareDocs AI — Flask application.
 
 The web layer for an MSc data science project on care home documentation. The
 application exists to make three data science components inspectable rather than
@@ -2377,7 +2377,7 @@ def server_error(e):
 if __name__ == "__main__":
     port  = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    print(f"\n[*] CareHome MVP running at http://localhost:{port}")
+    print(f"\n[*] CareDocs AI running at http://localhost:{port}")
     print("   Demo logins:")
     print("     manager1 / manager123  (full access)")
     print("     senior1  / senior123")

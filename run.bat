@@ -1,5 +1,5 @@
 @echo off
-REM  run.bat — start CareHome Docs.
+REM  run.bat — start CareDocs AI.
 REM
 REM  AI KEYS (optional)
 REM  The app calls Gemini and nothing else. Without a key it still runs: every
@@ -28,7 +28,7 @@ cd /d "%~dp0"
 
 echo.
 echo ========================================================================
-echo   CareHome Docs
+echo   CareDocs AI
 echo ========================================================================
 echo.
 

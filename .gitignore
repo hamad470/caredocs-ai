@@ -31,3 +31,8 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# ── Live demo build outputs (python build_rag_demo.py --reference) ──
+site/data/
+site/test/reference.json
+node_modules/

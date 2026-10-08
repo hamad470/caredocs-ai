@@ -65,6 +65,9 @@ bounds what any model trained on the observable records could reach.
 
 ## Changelog
 
+- Next-of-kin relationships now match the relative's name (no more "Pauline
+  Brown (Son)"). As with gender, the random draw is kept and the relationship is
+  not a model feature, so every reported metric is unchanged.
 - Gender is now derived from the first name. Previously it was drawn
   independently, so some notes used pronouns that did not match the resident's
   name. Gender is not a model feature and the random draw is retained, so all

@@ -157,11 +157,33 @@ is never uploaded. Never paste a key into any file you commit.
 
 ---
 
-## 8. Run the tests (optional)
+## 8. Run the "Ask the records" demo locally (optional)
+
+The same demo that is hosted on GitHub Pages can run on your machine:
+
+```bash
+python build_rag_demo.py
+cd site
+python -m http.server 8000
+```
+
+Open <http://localhost:8000>. It must be served like this rather than opened by
+double-clicking `index.html`, because browsers block loading data files from
+`file://` pages. Stop it with Ctrl + C.
+
+## 9. Run the tests (optional)
 
 ```bash
 python test_project.py      # 29 tests, ~5 minutes
 python test_chat_rag.py     # 40 checks, ~1 minute
+```
+
+The live demo has its own tests, which need [Node.js](https://nodejs.org) 18 or newer:
+
+```bash
+python build_rag_demo.py --reference
+cd site
+node --test test/retrieval.test.mjs
 ```
 
 On macOS/Linux you can force offline mode for the second suite with

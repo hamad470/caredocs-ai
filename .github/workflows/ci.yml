@@ -25,3 +25,11 @@ jobs:
         run: python test_project.py
       - name: Assistant and retrieval tests
         run: python test_chat_rag.py
+      - name: Build the live demo data
+        run: python build_rag_demo.py --reference
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Live demo engine tests (JS vs Python parity, citations, verifier)
+        working-directory: site
+        run: node --test test/retrieval.test.mjs

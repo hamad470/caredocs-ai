@@ -540,6 +540,11 @@ def generate(out_path: str,
         diagnosis = rng.choice(DIAGNOSES)
         nok_first = rng.choice(FIRST)
         nok_rel = rng.choice(["Son", "Daughter", "Niece", "Nephew", "Spouse", "Sister"])
+        # Match the relationship to the relative's name (draw kept, stream unchanged).
+        _male = nok_first in MALE_FIRST
+        nok_rel = {"Son": "Son" if _male else "Daughter", "Daughter": "Son" if _male else "Daughter",
+                   "Niece": "Nephew" if _male else "Niece", "Nephew": "Nephew" if _male else "Niece",
+                   "Sister": "Brother" if _male else "Sister"}.get(nok_rel, nok_rel)
         nok = f"{nok_first} {last}"
         key_worker = rng.choice(STAFF)
         dnacpr = rng.choice(["DNACPR in place", "Full resuscitation",

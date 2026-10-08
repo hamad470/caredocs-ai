@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ask the records: CareDocs AI retrieval demo</title>
+<meta name="description" content="Live retrieval-augmented generation demo over 25,017 synthetic care-home records. Every sentence links to the record and line it came from.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#question">Skip to the question</a>
+
+<header class="masthead">
+  <div class="brand"><span class="mark" aria-hidden="true"></span>CareDocs AI</div>
+  <nav><a id="repo-link" href="#">Source code on GitHub</a></nav>
+</header>
+
+<main>
+  <section class="ask" aria-labelledby="title">
+    <h1 id="title">Ask the records</h1>
+    <p class="lede">Search <span id="n-docs">25,017</span> synthetic care-home records in your browser. Every sentence in the answer links to the record and the line it came from, and each claim is checked against that line.</p>
+
+    <form id="ask-form" class="ask-form" autocomplete="off">
+      <label for="question" class="visually-hidden">Question</label>
+      <input id="question" name="q" type="text" placeholder="How many falls did Edith have in the last 6 months?" disabled>
+      <button id="ask-btn" type="submit" disabled>Loading records…</button>
+    </form>
+
+    <div class="examples" id="examples" aria-label="Example questions"></div>
+
+    <div class="mode" role="radiogroup" aria-label="How to write the answer">
+      <label><input type="radio" name="mode" value="quoted" checked> Quote the records <span class="hint">no AI, instant</span></label>
+      <label><input type="radio" name="mode" value="gemini"> Write with Gemini <span class="hint" id="gemini-hint">needs a free key</span></label>
+      <button type="button" class="linkish" id="settings-btn">Gemini settings</button>
+    </div>
+    <div class="loading" id="loading" role="status" aria-live="polite">
+      <div class="bar"><span id="load-bar"></span></div>
+      <span id="load-text">Downloading records…</span>
+    </div>
+  </section>
+
+  <div class="workspace" id="workspace" hidden>
+    <section class="answer" aria-labelledby="answer-title">
+      <h2 id="answer-title" class="visually-hidden">Answer</h2>
+      <div id="answer" aria-live="polite"></div>
+      <section class="pipeline" aria-labelledby="pipeline-title">
+        <h2 id="pipeline-title">How this answer was built</h2>
+        <ol id="pipeline"></ol>
+      </section>
+    </section>
+
+    <aside class="viewer" id="viewer" aria-labelledby="viewer-title">
+      <h2 id="viewer-title" class="visually-hidden">Source record</h2>
+      <div id="viewer-body" class="viewer-empty">
+        <p>Select a citation to open the record it points to.</p>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<footer class="foot">
+  <p>All records are synthetic, generated from a fixed seed by <code>synthetic_cohort.py</code>. No real person or care home is represented. Retrieval runs entirely in this page; with Gemini selected, the question and the selected evidence lines are sent to Google's API.</p>
+  <p id="build-info"></p>
+</footer>
+
+<dialog id="settings">
+  <form method="dialog" class="settings-form">
+    <h2>Gemini settings</h2>
+    <p id="proxy-note" hidden>This demo has a shared Gemini connection, so a key is optional. Add your own if the shared one is busy.</p>
+    <label for="api-key">Gemini API key</label>
+    <input id="api-key" type="password" placeholder="AIza…" autocomplete="off" spellcheck="false">
+    <p class="small">Get one free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, no card needed. The key is sent only to Google, straight from your browser.</p>
+    <label class="check"><input id="remember" type="checkbox"> Remember the key on this device</label>
+    <label for="model">Model</label>
+    <select id="model"></select>
+    <div class="dialog-actions">
+      <button value="cancel" type="submit" class="secondary">Cancel</button>
+      <button value="save" type="submit" id="save-settings">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
